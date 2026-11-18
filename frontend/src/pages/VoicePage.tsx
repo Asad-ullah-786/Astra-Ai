@@ -17,7 +17,7 @@ function describeError(error: unknown): string {
 }
 
 export function VoicePage() {
-  const { aiStatus, commandError, sendCommand, refresh, state } = useAstra();
+  const { aiStatus, commandError, health, sendCommand, refresh, state } = useAstra();
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
   const [language, setLanguage] = useState<TranscriptionLanguage>("auto");
   const [recording, setRecording] = useState(false);
@@ -175,7 +175,9 @@ export function VoicePage() {
       <section className="voice-core-panel" aria-label="ASTRA voice assistant">
         <div className="voice-core-stars" aria-hidden="true" />
         <div className="voice-core-copy">
-          <span className="voice-core-eyebrow">ASTRA VOICE LINK · LOCAL & PRIVATE</span>
+          <span className="voice-core-eyebrow">
+            {health?.cloud_deployment ? "ASTRA VOICE LINK · LOCAL BACKEND REQUIRED" : "ASTRA VOICE LINK · LOCAL & PRIVATE"}
+          </span>
           <AstraCore state={coreState} />
           <span className="voice-core-state" role="status">{voiceStatusText}</span>
         </div>
@@ -185,25 +187,33 @@ export function VoicePage() {
           {!voiceStatus?.ready ? (
             <div className="rounded-xl border border-astra-cyan/20 bg-slate-950/45 p-4">
               <p className="text-sm text-white">
-                {voiceStatus?.dependencies_installed
-                  ? "Download the small multilingual speech model to enable offline transcription."
-                  : "Install the local speech dependencies before downloading the offline model."}
+                {health?.cloud_deployment
+                  ? voiceStatus?.message ?? "Voice transcription requires the local backend."
+                  : voiceStatus?.dependencies_installed
+                    ? "Download the small multilingual speech model to enable offline transcription."
+                    : "Install the local speech dependencies before downloading the offline model."}
               </p>
-              <p className="mt-1 text-xs text-astra-muted">Speech audio is processed on this PC and is not saved.</p>
-              {!voiceStatus?.dependencies_installed ? (
+              <p className="mt-1 text-xs text-astra-muted">
+                {health?.cloud_deployment
+                  ? "Run ASTRA's local backend on your Windows computer to use private voice transcription."
+                  : "Speech audio is processed on this PC and is not saved."}
+              </p>
+              {!health?.cloud_deployment && !voiceStatus?.dependencies_installed ? (
                 <code className="mt-3 block rounded-lg bg-black/40 p-3 text-xs text-astra-cyan">
                   backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
                 </code>
               ) : null}
-              <button
-                type="button"
-                disabled={working || !voiceStatus?.dependencies_installed}
-                onClick={() => void installModel()}
-                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-astra-cyan/40 px-4 py-2 text-sm text-astra-cyan disabled:opacity-50"
-              >
-                {working ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
-                {working ? "DOWNLOADING SPEECH MODEL..." : "DOWNLOAD SPEECH MODEL"}
-              </button>
+              {!health?.cloud_deployment ? (
+                <button
+                  type="button"
+                  disabled={working || !voiceStatus?.dependencies_installed}
+                  onClick={() => void installModel()}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-astra-cyan/40 px-4 py-2 text-sm text-astra-cyan disabled:opacity-50"
+                >
+                  {working ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
+                  {working ? "DOWNLOADING SPEECH MODEL..." : "DOWNLOAD SPEECH MODEL"}
+                </button>
+              ) : null}
             </div>
           ) : (
             <>
@@ -290,15 +300,19 @@ export function VoicePage() {
             </div>
           ) : null}
           <p className="text-xs leading-5 text-astra-muted">
-            Recording is sent only to ASTRA on this PC for local Whisper transcription; audio is held temporarily and
-            deleted after processing. The recognized text is saved in conversation history and sent to your selected
-            {aiStatus?.selected_model?.startsWith("gemini:")
-              ? " Gemini cloud model"
-              : aiStatus?.selected_model?.startsWith("openai:")
-                ? " OpenAI cloud model"
-                : " local Ollama model"}.
-            Spoken replies use voices provided by your browser or Windows settings. Wake-word and background listening
-            are off.
+            {health?.cloud_deployment
+              ? "Voice input requires ASTRA's local backend. Hosted text chat remains available in the Chat page."
+              : <>
+                  Recording is sent only to ASTRA on this PC for local Whisper transcription; audio is held temporarily and
+                  deleted after processing. The recognized text is saved in conversation history and sent to your selected
+                  {aiStatus?.selected_model?.startsWith("gemini:")
+                    ? " Gemini cloud model"
+                    : aiStatus?.selected_model?.startsWith("openai:")
+                      ? " OpenAI cloud model"
+                      : " local Ollama model"}.
+                  Spoken replies use voices provided by your browser or Windows settings. Wake-word and background listening
+                  are off.
+                </>}
           </p>
         </div>
       </Panel>

@@ -107,6 +107,7 @@ async def health(session: AsyncSession = Depends(get_session)) -> HealthResponse
         status=status,
         database=database,
         auth_required=settings.auth_required,
+        cloud_deployment=settings.is_vercel_deployment,
         model=await read_ai_model(session) or "none",
         time_utc=datetime.now(timezone.utc),
     )
@@ -123,10 +124,20 @@ async def modules(
     session: AsyncSession = Depends(get_session),
 ) -> list[ModuleInfo]:
     items = [dict(item) for item in MODULES]
+    settings = get_settings()
+    api_module = next(item for item in items if item["id"] == "api")
+    if settings.is_vercel_deployment:
+        api_module["summary"] = "Hosted HTTP API with token-protected routes and HTTP streaming; WebSockets are disabled."
     ai_module = next(item for item in items if item["id"] == "ai")
+    selected: str | None = None
     try:
         selected = await read_ai_model(session)
-        if selected and selected.startswith(("gemini:", "openai:")):
+        if settings.is_vercel_deployment and not (
+            selected and selected.startswith(("gemini:", "openai:"))
+        ):
+            ai_module["status"] = "pending"
+            ai_module["summary"] = "Select a configured Gemini or OpenAI cloud model in Settings."
+        elif selected and selected.startswith(("gemini:", "openai:")):
             provider_name, model_name = selected.split(":", maxsplit=1)
             provider = GeminiProvider(model_name) if provider_name == "gemini" else OpenAIProvider(model_name)
             provider_label = "Gemini" if provider_name == "gemini" else "OpenAI"
@@ -154,10 +165,15 @@ async def modules(
             if selected and selected.startswith("gemini:")
             else "OpenAI is unavailable. Check the API key and network connection."
             if selected and selected.startswith("openai:")
+            else "Select a configured Gemini or OpenAI cloud model in Settings."
+            if settings.is_vercel_deployment
             else "Ollama is unavailable. Start the local Ollama service to use AI chat."
         )
     voice_module = next(item for item in items if item["id"] == "voice")
-    if voice_model_installed():
+    if settings.is_vercel_deployment:
+        voice_module["status"] = "pending"
+        voice_module["summary"] = "Local speech transcription is unavailable in the hosted backend."
+    elif voice_model_installed():
         voice_module["status"] = "online"
         voice_module["summary"] = (
             "Local multilingual push-to-talk transcription with automatic language detection and spoken replies "
@@ -168,18 +184,39 @@ async def modules(
         voice_module["summary"] = "Download the local speech model to enable push-to-talk transcription."
     memory_module = next(item for item in items if item["id"] == "memory")
     memory_module["status"] = "online"
-    memory_module["summary"] = "User-approved notes are stored privately in the local database and used in local chats."
+    memory_module["summary"] = (
+        "User-approved notes are stored in the managed database and used in hosted chats."
+        if settings.is_vercel_deployment
+        else "User-approved notes are stored privately in the local database and used in local chats."
+    )
     research_module = next(item for item in items if item["id"] == "research")
     research_module["status"] = "online"
-    research_module["summary"] = "Free DuckDuckGo web search is available when this computer is online."
+    research_module["summary"] = (
+        "Free DuckDuckGo web search is available when the hosted backend can access the internet."
+        if settings.is_vercel_deployment
+        else "Free DuckDuckGo web search is available when this computer is online."
+    )
     automation_module = next(item for item in items if item["id"] == "automation")
     apps = available_applications()
     automation_module["status"] = "online" if apps else "offline"
     automation_module["summary"] = (
-        f"Safe, allowlisted Windows launch actions available: {', '.join(apps)}. No arbitrary shell execution."
+        "Windows app launching is only available from a local Windows backend."
+        if settings.is_vercel_deployment
+        else f"Safe, allowlisted Windows launch actions available: {', '.join(apps)}. No arbitrary shell execution."
         if apps
         else "Windows app launch controls are available only on Windows."
     )
+    database_module = next(item for item in items if item["id"] == "database")
+    if settings.is_vercel_deployment:
+        database_module["name"] = "Managed PostgreSQL store"
+        database_module["summary"] = "Conversations, settings, memories, tasks, and activity persist in managed PostgreSQL."
+    system_module = next(item for item in items if item["id"] == "system_monitor")
+    if settings.is_vercel_deployment:
+        system_module["summary"] = "Live system readings describe the hosted Vercel runtime, not this device."
+        productivity_module = next(item for item in items if item["id"] == "productivity")
+        productivity_module["summary"] = (
+            "Tasks persist in managed PostgreSQL. There is no always-on reminder worker in serverless hosting."
+        )
     return [ModuleInfo.model_validate(item) for item in items]
 
 
@@ -269,8 +306,13 @@ async def research_search(
 async def _gemini_status() -> GeminiStatusOut:
     provider = GeminiProvider()
     if not provider.configured:
+        instruction = (
+            "Set GEMINI_API_KEY in Vercel project environment variables."
+            if get_settings().is_vercel_deployment
+            else "Set GEMINI_API_KEY in backend/.env, then restart ASTRA."
+        )
         return GeminiStatusOut(
-            error="Set GEMINI_API_KEY in backend/.env, then restart ASTRA.",
+            error=instruction,
         )
     try:
         models = await provider.list_models()
@@ -286,8 +328,13 @@ async def _gemini_status() -> GeminiStatusOut:
 async def _openai_status() -> GeminiStatusOut:
     provider = OpenAIProvider()
     if not provider.configured:
+        instruction = (
+            "Set OPENAI_API_KEY in Vercel project environment variables."
+            if get_settings().is_vercel_deployment
+            else "Set OPENAI_API_KEY in backend/.env, then restart ASTRA."
+        )
         return GeminiStatusOut(
-            error="Set OPENAI_API_KEY in backend/.env, then restart ASTRA.",
+            error=instruction,
         )
     try:
         models = await provider.list_models()
@@ -301,6 +348,8 @@ async def _openai_status() -> GeminiStatusOut:
 
 
 async def _ollama_models_status() -> tuple[list[InstalledModel], str | None]:
+    if get_settings().is_vercel_deployment:
+        return [], "Local Ollama is unavailable in the hosted backend."
     try:
         models = await asyncio.wait_for(get_language_model().list_models(), timeout=8.0)
         return models, None
@@ -398,6 +447,14 @@ async def activity(
 
 @api_router.get("/voice/status", response_model=VoiceStatusOut)
 async def voice_status(_: None = Depends(require_token)) -> VoiceStatusOut:
+    if get_settings().is_vercel_deployment:
+        return VoiceStatusOut(
+            ready=False,
+            dependencies_installed=False,
+            model=MODEL_NAME,
+            languages=["Multilingual · automatic detection"],
+            message="Local speech recognition is unavailable in the hosted backend.",
+        )
     dependencies_installed = voice_dependencies_installed()
     ready = dependencies_installed and voice_model_installed()
     return VoiceStatusOut(
@@ -417,6 +474,8 @@ async def voice_status(_: None = Depends(require_token)) -> VoiceStatusOut:
 
 @api_router.post("/voice/model", response_model=VoiceStatusOut)
 async def install_voice_model(_: None = Depends(require_token)) -> VoiceStatusOut:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=503, detail="Local speech models cannot be installed in the hosted backend.")
     try:
         await run_in_threadpool(download_voice_model)
     except Exception as exc:
@@ -434,6 +493,8 @@ async def transcribe_voice(
     language: str = Form(default="auto"),
     _: None = Depends(require_token),
 ) -> VoiceTranscriptionOut:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=503, detail="Voice transcription is available only through the local backend.")
     if not voice_dependencies_installed():
         raise HTTPException(status_code=503, detail="Install backend requirements before transcribing audio.")
     if not voice_model_installed():

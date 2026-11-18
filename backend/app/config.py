@@ -1,11 +1,12 @@
 from functools import lru_cache
+import os
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-BACKEND_ROOT = PROJECT_ROOT / "backend"
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = BACKEND_ROOT.parent
 DATA_DIR = PROJECT_ROOT / "data"
 LOG_DIR = PROJECT_ROOT / "logs"
 
@@ -27,7 +28,7 @@ class Settings(BaseSettings):
     api_token: str = Field(default="", alias="ASTRA_API_TOKEN")
     database_url: str = Field(
         default=f"sqlite+aiosqlite:///{(DATA_DIR / 'astra.db').as_posix()}",
-        alias="ASTRA_DATABASE_URL",
+        validation_alias=AliasChoices("ASTRA_DATABASE_URL", "DATABASE_URL", "POSTGRES_URL"),
     )
     cors_origins: str = Field(
         default="http://127.0.0.1:5173,http://localhost:5173",
@@ -43,8 +44,12 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
+    def is_vercel_deployment(self) -> bool:
+        return os.environ.get("VERCEL") == "1"
+
+    @property
     def auth_required(self) -> bool:
-        return bool(self.api_token.strip())
+        return self.is_vercel_deployment or bool(self.api_token.strip())
 
 
 @lru_cache

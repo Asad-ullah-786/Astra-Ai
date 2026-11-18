@@ -39,9 +39,17 @@ start_astra.bat
 
 Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The API docs are at [http://127.0.0.1:8787/docs](http://127.0.0.1:8787/docs).
 
-## Vercel preview
+## Vercel full-stack deployment
 
-For Git deployments, set the Vercel project's Root Directory to `frontend`. When logged out, an unclaimed preview can be created from that directory with `npx vercel@latest deploy --temporary`. This hosts only the React UI; chat, voice, task storage, live system data, and other API-backed features remain unavailable because the FastAPI backend intentionally uses local SQLite, Ollama, Windows capabilities, and a loopback-only connection. Do not expose that backend directly; a full cloud deployment requires a separately secured, cloud-compatible backend and persistent storage.
+The root `vercel.json` deploys the React frontend and FastAPI backend as Vercel Services. Set the Vercel project's Root Directory to the repository root. Add these secrets in the Vercel project settings before using the hosted API:
+
+- `ASTRA_DATABASE_URL`: a pooled managed PostgreSQL connection URL. The backend also accepts `DATABASE_URL` or `POSTGRES_URL`.
+- `ASTRA_API_TOKEN`: a long, unique bearer token. Hosted API routes fail closed unless this token is configured.
+- `GEMINI_API_KEY`: the Google Gemini key used for hosted chat.
+
+Enter the same `ASTRA_API_TOKEN` in ASTRA Settings, then select an available Gemini model. Never commit these values or put provider keys in frontend environment variables.
+
+The hosted backend persists chats, tasks, approved memories, settings, and activity in PostgreSQL. Vercel does not provide ASTRA with the local PC's Ollama process, Windows app launching, local speech-model files, or a persistent reminder worker. Voice transcription and Windows actions therefore remain local-backend features; system readings on Vercel describe the hosted runtime, not the user's device. WebSockets are disabled in production and chat uses the HTTP streaming API.
 
 ## Local AI setup
 
@@ -77,12 +85,12 @@ The browser talks only to the local API. Vite proxies `/api` and `/ws` to the ba
 
 | Piece | Role |
 | --- | --- |
-| `frontend/` | React command center, AI Core chat, separate conversation archive, system meters, local model settings, activity, calendar/tasks, memory/knowledge, research, allowlisted automation, and push-to-talk voice. |
+| `frontend/` | React command center, AI Core chat, separate conversation archive, system meters, local/cloud model settings, activity, calendar/tasks, memory/knowledge, research, allowlisted automation, and push-to-talk voice. |
 | `backend/app/api` | HTTP routes for health, system stats, modules, settings, conversations, tasks, memories, research, automation, voice, and commands. |
 | `backend/app/websocket` | Session socket for live stats and the same command path. |
 | `backend/app/ai` | Ollama and optional Gemini/OpenAI providers, model discovery, and token streaming. |
-| `backend/app/database` | SQLAlchemy models and the SQLite engine. |
-| `backend/app/security` | Loopback-only middleware and optional bearer token. |
+| `backend/app/database` | SQLAlchemy models with local SQLite and hosted PostgreSQL engines. |
+| `backend/app/security` | Loopback-only local middleware and required bearer token in Vercel. |
 | `data/astra.db` | Created on first startup. Not committed. |
 
 Windows actions require an explicit button press and are restricted to the listed app allowlist. Screenshot capture requires choosing a window or screen in the browser share picker. There is no arbitrary command or public control API. Cloud model use is optional and requires a user-provided Gemini or OpenAI API key.

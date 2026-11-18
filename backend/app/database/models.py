@@ -65,7 +65,7 @@ class TaskItem(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
-    in_progress: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    in_progress: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

@@ -219,6 +219,10 @@ export function AstraProvider({ children }: { children: ReactNode }) {
   }, [refresh, tokenVersion]);
 
   useEffect(() => {
+    if (import.meta.env.PROD) {
+      return;
+    }
+
     let socket: WebSocket | null = null;
     let stopped = false;
     let retry = 0;

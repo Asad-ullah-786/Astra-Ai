@@ -18,6 +18,7 @@ export interface HealthResponse {
   status: string;
   database: string;
   auth_required: boolean;
+  cloud_deployment: boolean;
   model: string;
   time_utc: string;
 }

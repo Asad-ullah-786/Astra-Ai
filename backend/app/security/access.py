@@ -56,6 +56,13 @@ class LocalOnlyMiddleware:
             await self.app(scope, receive, send)
             return
 
+        if get_settings().is_vercel_deployment:
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
+                return
+            await self.app(scope, receive, send)
+            return
+
         headers = Headers(scope=scope)
         client = scope.get("client")
         client_host = client[0] if client else None

@@ -4,7 +4,7 @@ import { useAstra } from "../hooks/useAstra.ts";
 import { formatGigabytes, formatPercent, formatUptime } from "../lib/format.ts";
 
 export function SystemPage() {
-  const { stats } = useAstra();
+  const { stats, health } = useAstra();
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
@@ -44,7 +44,12 @@ export function SystemPage() {
           percent={stats?.disk_percent ?? null}
         />
       </div>
-      <Panel title="HOST">
+      <Panel title={health?.cloud_deployment ? "HOSTED BACKEND RUNTIME" : "HOST"}>
+        {health?.cloud_deployment ? (
+          <p className="mb-3 text-sm text-astra-muted">
+            These readings describe the Vercel backend runtime, not your personal computer.
+          </p>
+        ) : null}
         {stats ? (
           <dl className="grid gap-2 text-sm sm:grid-cols-2">
             <div>

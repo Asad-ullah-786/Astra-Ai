@@ -9,6 +9,10 @@ import httpx
 from app.config import get_settings
 
 
+def _is_vercel_deployment() -> bool:
+    return bool(getattr(get_settings(), "is_vercel_deployment", False))
+
+
 class AIProviderError(RuntimeError):
     """The selected AI provider cannot be used."""
 
@@ -163,7 +167,12 @@ class GeminiProvider(LanguageModel):
 
     def _headers(self) -> dict[str, str]:
         if not self.api_key:
-            raise AIProviderError("Set GEMINI_API_KEY in backend/.env, then restart ASTRA.")
+            instruction = (
+                "Set GEMINI_API_KEY in Vercel project environment variables."
+                if _is_vercel_deployment()
+                else "Set GEMINI_API_KEY in backend/.env, then restart ASTRA."
+            )
+            raise AIProviderError(instruction)
         return {"x-goog-api-key": self.api_key}
 
     @classmethod
@@ -310,7 +319,12 @@ class OpenAIProvider(LanguageModel):
 
     def _headers(self) -> dict[str, str]:
         if not self.api_key:
-            raise AIProviderError("Set OPENAI_API_KEY in backend/.env, then restart ASTRA.")
+            instruction = (
+                "Set OPENAI_API_KEY in Vercel project environment variables."
+                if _is_vercel_deployment()
+                else "Set OPENAI_API_KEY in backend/.env, then restart ASTRA."
+            )
+            raise AIProviderError(instruction)
         return {"Authorization": f"Bearer {self.api_key}"}
 
     @classmethod
@@ -430,4 +444,6 @@ def get_language_model(model: str | None = None) -> LanguageModel:
         return GeminiProvider(model.removeprefix("gemini:"))
     if model and model.startswith("openai:"):
         return OpenAIProvider(model.removeprefix("openai:"))
+    if _is_vercel_deployment():
+        raise AIProviderError("Select a configured Gemini or OpenAI cloud model in Settings before chatting.")
     return OllamaProvider(model)

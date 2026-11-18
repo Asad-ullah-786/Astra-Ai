@@ -4,6 +4,8 @@ from pathlib import Path
 
 import psutil
 
+from app.config import get_settings
+
 _process_started = time.time()
 _cpu_primed = False
 
@@ -15,6 +17,7 @@ def prime_cpu() -> None:
 
 
 def system_snapshot() -> dict:
+    cloud_deployment = get_settings().is_vercel_deployment
     if not _cpu_primed:
         prime_cpu()
 
@@ -35,7 +38,7 @@ def system_snapshot() -> dict:
         "disk_free_gb": round(disk.free / (1024**3), 2),
         "disk_total_gb": round(disk.total / (1024**3), 2),
         "platform": platform.platform(),
-        "hostname": platform.node(),
+        "hostname": "Vercel serverless runtime" if cloud_deployment else platform.node(),
         "python": platform.python_version(),
         "system_uptime_seconds": int(time.time() - psutil.boot_time()),
         "app_uptime_seconds": int(time.time() - _process_started),

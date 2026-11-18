@@ -12,6 +12,7 @@ class HealthResponse(BaseModel):
     status: str
     database: str
     auth_required: bool
+    cloud_deployment: bool = False
     model: str
     time_utc: datetime
 

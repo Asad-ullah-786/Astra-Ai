@@ -23,20 +23,28 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     configure_logging(settings.log_level)
     await init_database()
-    prime_cpu()
-    await record_activity("info", "system", "ASTRA backend started")
+    if not settings.is_vercel_deployment:
+        prime_cpu()
+        await record_activity("info", "system", "ASTRA backend started")
     logger.info("ASTRA %s phase %s ready", settings.version, settings.phase)
-    reminder_worker = asyncio.create_task(task_reminder_loop(), name="astra-task-reminders")
+    reminder_worker = (
+        None
+        if settings.is_vercel_deployment
+        else asyncio.create_task(task_reminder_loop(), name="astra-task-reminders")
+    )
     try:
         yield
     finally:
-        reminder_worker.cancel()
         try:
-            await reminder_worker
-        except asyncio.CancelledError:
-            pass
+            if reminder_worker is not None:
+                reminder_worker.cancel()
+                try:
+                    await reminder_worker
+                except asyncio.CancelledError:
+                    pass
         finally:
-            await record_activity("info", "system", "ASTRA backend stopped")
+            if not settings.is_vercel_deployment:
+                await record_activity("info", "system", "ASTRA backend stopped")
             await dispose_database()
 
 

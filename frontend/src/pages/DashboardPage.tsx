@@ -379,17 +379,23 @@ export function DashboardPage() {
         </Panel>
 
         <Panel title="QUICK COMMANDS" className="dashboard-panel quick-panel">
-          <QuickAction label={workingAction === "code" ? "Opening VS Code..." : "Open VS Code"} icon={Code2} disabled={Boolean(workingAction)} onClick={() => void launch("code")} />
-          <QuickAction label={workingAction === "chrome" ? "Opening Chrome..." : "Open Chrome"} icon={Chrome} disabled={Boolean(workingAction)} onClick={() => void launch("chrome")} />
+          {health?.cloud_deployment ? (
+            <p className="text-xs text-astra-muted">Windows app launching is only available from a local backend.</p>
+          ) : (
+            <>
+              <QuickAction label={workingAction === "code" ? "Opening VS Code..." : "Open VS Code"} icon={Code2} disabled={Boolean(workingAction)} onClick={() => void launch("code")} />
+              <QuickAction label={workingAction === "chrome" ? "Opening Chrome..." : "Open Chrome"} icon={Chrome} disabled={Boolean(workingAction)} onClick={() => void launch("chrome")} />
+              <QuickAction label={workingAction === "settings" ? "Opening Settings..." : "Open Windows Settings"} icon={Settings2} disabled={Boolean(workingAction)} onClick={() => void launch("settings")} />
+            </>
+          )}
           <QuickExternalLink href="https://github.com/" label="Open GitHub" icon={Github} />
           <QuickAction label={workingAction === "screenshot" ? "Capturing..." : "Take Screenshot"} icon={Camera} disabled={Boolean(workingAction)} onClick={() => void takeScreenshot()} />
-          <QuickAction label={workingAction === "settings" ? "Opening Settings..." : "Open Windows Settings"} icon={Settings2} disabled={Boolean(workingAction)} onClick={() => void launch("settings")} />
           {actionError ? <p className="text-xs text-astra-danger" role="alert">{actionError}</p> : null}
         </Panel>
       </div>
 
       <div className="dashboard-row dashboard-row-bottom">
-        <Panel title="SYSTEM MONITOR" className="dashboard-panel monitor-panel">
+        <Panel title={health?.cloud_deployment ? "HOSTED SYSTEM MONITOR" : "SYSTEM MONITOR"} className="dashboard-panel monitor-panel">
           <div className="gauge-grid">
             <SystemGauge label="CPU" percent={stats?.cpu_percent ?? null} detail={stats ? `${stats.cpu_count} logical CPUs` : "Waiting"} />
             <SystemGauge label="RAM" percent={stats?.ram_percent ?? null} detail={stats ? `${formatGigabytes(stats.ram_used_gb)} / ${formatGigabytes(stats.ram_total_gb)}` : "Waiting"} />

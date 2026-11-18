@@ -4,6 +4,7 @@ import httpx
 
 from app.security.access import is_local_request, token_matches
 from app.ai.provider import AIProviderError, InstalledModel
+from app.database.session import _database_connection_options
 from app.services.ai_clients import available_ai_clients
 from app.services.research import search_web
 from app.services.voice import voice_model_installed
@@ -45,6 +46,37 @@ def test_token_comparison_rejects_partial_matches():
     assert token_matches("Bearer secret", "Bearer secret") is True
     assert token_matches("Bearer secret", "Bearer secrets") is False
     assert token_matches("", "Bearer secret") is False
+
+
+def test_vercel_mode_requires_token_and_accepts_public_host(client, monkeypatch):
+    monkeypatch.setenv("VERCEL", "1")
+
+    health = client.get("/api/v1/health", headers={"host": "astra-ai.vercel.app"})
+    assert health.status_code == 200
+    assert health.json()["auth_required"] is True
+    assert health.json()["cloud_deployment"] is True
+
+    protected = client.get("/api/v1/system", headers={"host": "astra-ai.vercel.app"})
+    assert protected.status_code == 401
+
+
+def test_postgres_url_uses_asyncpg_and_translates_sslmode():
+    url, connect_args = _database_connection_options(
+        "postgresql://user:password@db.example/app?sslmode=require&channel_binding=require",
+        is_vercel=True,
+    )
+
+    assert url.startswith("postgresql+asyncpg://")
+    assert "sslmode" not in url
+    assert "channel_binding" not in url
+    assert connect_args == {"ssl": "require"}
+
+
+def test_vercel_rejects_sqlite_storage():
+    import pytest
+
+    with pytest.raises(RuntimeError, match="managed PostgreSQL"):
+        _database_connection_options("sqlite+aiosqlite:///data/astra.db", is_vercel=True)
 
 
 def test_ai_client_availability_only_reports_installed_commands(monkeypatch):

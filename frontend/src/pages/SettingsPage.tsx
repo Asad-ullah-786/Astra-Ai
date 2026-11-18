@@ -60,8 +60,8 @@ export function SettingsPage() {
 
       <Panel title="API TOKEN">
         <p className="mb-3 text-sm leading-6 text-astra-muted">
-          Leave this empty while the backend has no token configured. If you set ASTRA_API_TOKEN, paste the same value
-          here. It stays in this browser session and is not written to the database.
+          When backend authentication is enabled, paste the same ASTRA_API_TOKEN value here. It stays in this browser
+          session and is not written to the database.
         </p>
         <form
           className="flex flex-col gap-3 sm:flex-row"
@@ -130,8 +130,10 @@ export function SettingsPage() {
           <p className="mt-3 text-sm text-astra-danger" role="status">{aiStatus.error}</p>
         ) : null}
         <p className="mt-4 text-sm leading-6 text-astra-muted">
-          When Ollama is selected, AI runs locally and chat history stays on this computer. Installed local models only
-          appear here. Your computer reports {stats ? `${stats.ram_total_gb.toFixed(1)} GB RAM` : "its RAM size"};
+          {health?.cloud_deployment
+            ? "Vercel cannot access an Ollama service on your computer. Use the Gemini section below for hosted chat. The backend runtime reports"
+            : "When Ollama is selected, AI runs locally and chat history stays on this computer. Installed local models only appear here. Your computer reports"}{" "}
+          {stats ? `${stats.ram_total_gb.toFixed(1)} GB RAM` : "its RAM size"};
           models also need extra memory while generating, so larger models may run slowly or fail to load.
         </p>
         {aiStatus?.models.length ? (
@@ -184,12 +186,13 @@ export function SettingsPage() {
         ) : null}
       </Panel>
 
-      <Panel title="LOCAL MODEL DOWNLOAD QUEUE">
+      <Panel title={health?.cloud_deployment ? "LOCAL MODEL QUEUE · UNAVAILABLE ON VERCEL" : "LOCAL MODEL DOWNLOAD QUEUE"}>
         <p className="mb-4 text-sm leading-6 text-astra-muted">
-          Ollama installs these models one at a time. ASTRA checks the installed-model list and makes each one selectable
-          as soon as Ollama verifies it; partial downloads are not shown as available.
+          {health?.cloud_deployment
+            ? "Local Ollama models and downloads are only available when ASTRA runs on your computer."
+            : "Ollama installs these models one at a time. ASTRA checks the installed-model list and makes each one selectable as soon as Ollama verifies it; partial downloads are not shown as available."}
         </p>
-        <ol className="flex flex-col gap-3">
+        {!health?.cloud_deployment ? <ol className="flex flex-col gap-3">
           {localModelDownloadQueue.map((item, index) => (
             <li
               key={item.id}
@@ -218,7 +221,7 @@ export function SettingsPage() {
               </span>
             </li>
           ))}
-        </ol>
+        </ol> : null}
       </Panel>
 
       <Panel title="CLOUD AI MODEL · GOOGLE GEMINI">

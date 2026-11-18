@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/chat", "destination": "/index.html" },
+    { "source": "/agents", "destination": "/index.html" },
+    { "source": "/voice", "destination": "/index.html" },
+    { "source": "/system", "destination": "/index.html" },
+    { "source": "/memory", "destination": "/index.html" },
+    { "source": "/tasks", "destination": "/index.html" },
+    { "source": "/calendar", "destination": "/index.html" },
+    { "source": "/conversations", "destination": "/index.html" },
+    { "source": "/knowledge", "destination": "/index.html" },
+    { "source": "/automation", "destination": "/index.html" },
+    { "source": "/skills", "destination": "/index.html" },
+    { "source": "/research", "destination": "/index.html" },
+    { "source": "/activity", "destination": "/index.html" },
+    { "source": "/settings", "destination": "/index.html" }
+  ]
+}

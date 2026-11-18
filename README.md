@@ -39,6 +39,10 @@ start_astra.bat
 
 Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The API docs are at [http://127.0.0.1:8787/docs](http://127.0.0.1:8787/docs).
 
+## Vercel preview
+
+The `frontend/` directory can be deployed as a static preview. From that directory, run `npx vercel@latest deploy --temporary`. This hosts only the React UI; chat, voice, task storage, live system data, and other API-backed features remain unavailable because the FastAPI backend intentionally uses local SQLite, Ollama, Windows capabilities, and a loopback-only connection. Do not expose that backend directly; a full cloud deployment requires a separately secured, cloud-compatible backend and persistent storage.
+
 ## Local AI setup
 
 Install the free Ollama desktop app, start it, and download a model using its CLI, for example:

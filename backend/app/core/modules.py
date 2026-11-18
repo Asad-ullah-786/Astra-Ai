@@ -1,0 +1,81 @@
+"""Honest capability map. Pending modules are not advertised as working."""
+
+MODULES: list[dict[str, str | int]] = [
+    {
+        "id": "api",
+        "name": "Backend API",
+        "phase": 1,
+        "status": "online",
+        "summary": "Local HTTP and WebSocket API on this computer.",
+    },
+    {
+        "id": "database",
+        "name": "SQLite memory store",
+        "phase": 1,
+        "status": "online",
+        "summary": "Conversations, settings, and activity logs persist locally.",
+    },
+    {
+        "id": "dashboard",
+        "name": "Command dashboard",
+        "phase": 1,
+        "status": "online",
+        "summary": "Live status, system meters, and text commands.",
+    },
+    {
+        "id": "system_monitor",
+        "name": "System monitor",
+        "phase": 1,
+        "status": "online",
+        "summary": "CPU, memory, battery, disk, and host information.",
+    },
+    {
+        "id": "ai",
+        "name": "AI brain",
+        "phase": 2,
+        "status": "pending",
+        "summary": "Ollama and the model provider interface are not connected yet.",
+    },
+    {
+        "id": "voice",
+        "name": "Voice engine",
+        "phase": 3,
+        "status": "pending",
+        "summary": "Download the local speech model to enable push-to-talk transcription.",
+    },
+    {
+        "id": "automation",
+        "name": "Windows automation",
+        "phase": 4,
+        "status": "pending",
+        "summary": "Application, file, and browser control are not enabled yet.",
+    },
+    {
+        "id": "memory",
+        "name": "Personal memory",
+        "phase": 5,
+        "status": "pending",
+        "summary": "Approved long-term memories are not available yet.",
+    },
+    {
+        "id": "research",
+        "name": "Research engine",
+        "phase": 6,
+        "status": "pending",
+        "summary": "Web search and page summarization are not connected yet.",
+    },
+    {
+        "id": "productivity",
+        "name": "Productivity",
+        "phase": 7,
+        "status": "online",
+        "summary": "Local tasks and due-date reminders are available.",
+    },
+    {
+        "id": "desktop",
+        "name": "Desktop application",
+        "phase": 8,
+        "status": "pending",
+        "summary": "The Tauri desktop shell is not built yet. Rust is required.",
+    },
+]

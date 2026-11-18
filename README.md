@@ -41,7 +41,7 @@ Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The API docs are at [http:/
 
 ## Vercel preview
 
-The `frontend/` directory can be deployed as a static preview. From that directory, run `npx vercel@latest deploy --temporary`. This hosts only the React UI; chat, voice, task storage, live system data, and other API-backed features remain unavailable because the FastAPI backend intentionally uses local SQLite, Ollama, Windows capabilities, and a loopback-only connection. Do not expose that backend directly; a full cloud deployment requires a separately secured, cloud-compatible backend and persistent storage.
+For Git deployments, set the Vercel project's Root Directory to `frontend`. When logged out, an unclaimed preview can be created from that directory with `npx vercel@latest deploy --temporary`. This hosts only the React UI; chat, voice, task storage, live system data, and other API-backed features remain unavailable because the FastAPI backend intentionally uses local SQLite, Ollama, Windows capabilities, and a loopback-only connection. Do not expose that backend directly; a full cloud deployment requires a separately secured, cloud-compatible backend and persistent storage.
 
 ## Local AI setup
 

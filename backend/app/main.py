@@ -11,6 +11,7 @@ from app.core.logging import configure_logging, logger
 from app.database.session import dispose_database, init_database
 from app.security.access import LocalOnlyMiddleware
 from app.services.activity import record_activity
+from app.services.device_bridge import PAIRING_CODE_TTL_SECONDS, device_bridge
 from app.services.system_monitor import prime_cpu
 from app.services.task_reminders import task_reminder_loop
 from app.websocket.session import router as websocket_router
@@ -26,6 +27,12 @@ async def lifespan(_: FastAPI):
     if not settings.is_vercel_deployment:
         prime_cpu()
         await record_activity("info", "system", "ASTRA backend started")
+        pairing_code = device_bridge.start()
+        print(
+            "\nASTRA local device pairing code "
+            f"(one use, expires in {PAIRING_CODE_TTL_SECONDS // 60} minutes): {pairing_code}\n",
+            flush=True,
+        )
     logger.info("ASTRA %s phase %s ready", settings.version, settings.phase)
     reminder_worker = (
         None
@@ -45,6 +52,7 @@ async def lifespan(_: FastAPI):
         finally:
             if not settings.is_vercel_deployment:
                 await record_activity("info", "system", "ASTRA backend stopped")
+                device_bridge.stop()
             await dispose_database()
 
 
@@ -67,6 +75,7 @@ def create_app() -> FastAPI:
             "Content-Type",
             "X-Astra-Provider-Key",
             "X-Astra-Provider",
+            "X-Astra-Device-Session",
         ],
     )
     app.include_router(api_router, prefix="/api/v1")

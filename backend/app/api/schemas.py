@@ -308,6 +308,29 @@ class AutomationLaunchOut(BaseModel):
     message: str
 
 
+class DevicePairIn(BaseModel):
+    pairing_code: str = Field(min_length=8, max_length=8, pattern=r"^[A-Fa-f0-9]{8}$")
+
+
+class DevicePairOut(BaseModel):
+    access_token: str
+    expires_in: int
+
+
+class DeviceActionIn(BaseModel):
+    action: Literal["launch_app", "open_url"]
+    application: Literal["code", "chrome", "settings"] | None = None
+    url: str | None = Field(default=None, max_length=2048)
+
+    @model_validator(mode="after")
+    def validate_action_parameters(self):
+        if self.action == "launch_app" and (self.application is None or self.url is not None):
+            raise ValueError("Choose one approved application.")
+        if self.action == "open_url" and (self.url is None or self.application is not None):
+            raise ValueError("Provide one URL to open.")
+        return self
+
+
 class ResearchSearchIn(BaseModel):
     query: str = Field(min_length=2, max_length=300)
 

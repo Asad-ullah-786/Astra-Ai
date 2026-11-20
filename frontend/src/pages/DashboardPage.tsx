@@ -393,7 +393,14 @@ export function DashboardPage() {
           )}
           <QuickExternalLink href="https://github.com/" label="Open GitHub" icon={Github} />
           <QuickAction label={workingAction === "screenshot" ? "Capturing..." : "Take Screenshot"} icon={Camera} disabled={Boolean(workingAction)} onClick={() => void takeScreenshot()} />
-          {actionError ? <p className="text-xs text-astra-danger" role="alert">{actionError}</p> : null}
+          {actionError ? (
+            <p className="text-xs text-astra-danger" role="alert">
+              {actionError}
+              {actionError.includes("Connect this browser") ? (
+                <> <NavLink to="/automation" className="underline">Pair this device</NavLink>.</>
+              ) : null}
+            </p>
+          ) : null}
         </Panel>
       </div>
 

@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ASTRA_DATABASE_URL", "DATABASE_URL", "POSTGRES_URL"),
     )
     cors_origins: str = Field(
-        default="http://127.0.0.1:5173,http://localhost:5173",
+        default="http://127.0.0.1:5173,http://localhost:5173,https://astra-ai-786.vercel.app",
         alias="ASTRA_CORS_ORIGINS",
     )
     stats_interval_seconds: float = Field(default=2.0, alias="ASTRA_STATS_INTERVAL")

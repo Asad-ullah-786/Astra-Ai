@@ -9,9 +9,11 @@ import type {
   SettingsPayload,
   TaskCreateInput,
   TaskUpdateInput,
+  LocalApplication,
   VoiceStatus,
   VoiceTranscription,
 } from "../types/index.ts";
+import { launchLocalApplication } from "./device.ts";
 
 const TOKEN_KEY = "astra.apiToken";
 const PERSONAL_PROVIDER_KEY = "astra.personalProviderKey";
@@ -285,8 +287,11 @@ export function deleteMemory(memoryId: string): Promise<void> {
   return apiSend<void>(`/api/v1/memory/${memoryId}`, "DELETE");
 }
 
-export function launchApplication(application: "code" | "chrome" | "settings"): Promise<{ application: string; message: string }> {
-  return apiSend("/api/v1/automation/launch", "POST", { application });
+export async function launchApplication(
+  application: LocalApplication,
+): Promise<{ application: string; message: string }> {
+  const result = await launchLocalApplication(application);
+  return { application, message: result.message };
 }
 
 export function searchResearch(query: string): Promise<ResearchResponse> {

@@ -30,6 +30,7 @@ import type {
   CommandSendOptions,
   ConversationDetail,
   ConversationSummary,
+  DeviceIntent,
   HealthResponse,
   ModuleInfo,
   MemoryInput,
@@ -39,6 +40,8 @@ import type {
   TaskCreateInput,
   TaskUpdateInput,
 } from "../types/index.ts";
+import { parseDeviceIntent } from "../lib/deviceIntent.ts";
+import { launchLocalApplication, openLocalUrl } from "../services/device.ts";
 
 function describe(error: unknown): string {
   if (error instanceof ApiError) {
@@ -69,6 +72,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
   const [memories, setMemories] = useState<PersonalMemory[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [pendingDeviceAction, setPendingDeviceAction] = useState<DeviceIntent | null>(null);
   const [settings, setSettings] = useState<SettingsPayload | null>(null);
   const [tokenVersion, setTokenVersion] = useState(0);
   const activeIdRef = useRef<string | null>(null);
@@ -268,6 +272,10 @@ export function AstraProvider({ children }: { children: ReactNode }) {
 
   const send = useCallback(
     async (text: string, options?: CommandSendOptions) => {
+      if (pendingDeviceAction) {
+        setCommandError("Confirm or cancel the pending device action before sending another command.");
+        return null;
+      }
       const cleaned = text.trim();
       if (!cleaned) {
         setCommandError("Enter a command before sending.");
@@ -280,6 +288,28 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       setCommandError(null);
       setState("processing");
       try {
+        const deviceIntent = parseDeviceIntent(cleaned);
+        if (deviceIntent) {
+          const createdAt = new Date().toISOString();
+          const userMessage: ChatMessage = {
+            id: `device-user-${Date.now()}`,
+            role: "user",
+            content: cleaned,
+            created_at: createdAt,
+          };
+          const assistantMessage: ChatMessage = {
+            id: `device-assistant-${Date.now()}`,
+            role: "assistant",
+            content: `${deviceIntent.label} is ready. Confirm below; Windows will ask you once more before it runs.`,
+            created_at: createdAt,
+          };
+          setMessages((current) => [...current, userMessage, assistantMessage]);
+          setPendingDeviceAction(deviceIntent);
+          setState("completed");
+          idleTimer.current = window.setTimeout(() => setState("idle"), 1600);
+          return assistantMessage;
+        }
+
         const streamingId = `stream-${Date.now()}`;
         let receivedMeta = false;
         let receivedDone = false;
@@ -338,12 +368,55 @@ export function AstraProvider({ children }: { children: ReactNode }) {
         return null;
       }
     },
-    [refresh],
+    [pendingDeviceAction, refresh],
   );
+
+  const approveDeviceAction = useCallback(async () => {
+    const action = pendingDeviceAction;
+    if (!action) return;
+    setCommandError(null);
+    if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
+    setState("processing");
+    try {
+      const result = action.action === "launch_app"
+        ? await launchLocalApplication(action.application)
+        : await openLocalUrl(action.url);
+      const reply: ChatMessage = {
+        id: `device-result-${Date.now()}`,
+        role: "assistant",
+        content: result.message,
+        created_at: new Date().toISOString(),
+      };
+      setMessages((current) => [...current, reply]);
+      setState("completed");
+      idleTimer.current = window.setTimeout(() => setState("idle"), 1600);
+    } catch (error) {
+      setCommandError(describe(error));
+      setState("error");
+    } finally {
+      setPendingDeviceAction(null);
+    }
+  }, [pendingDeviceAction]);
+
+  const cancelDeviceAction = useCallback(() => {
+    if (!pendingDeviceAction) return;
+    setPendingDeviceAction(null);
+    setMessages((current) => [
+      ...current,
+      {
+        id: `device-cancelled-${Date.now()}`,
+        role: "assistant",
+        content: "Cancelled. ASTRA did not send the action to your device.",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    setState("idle");
+  }, [pendingDeviceAction]);
 
   const openConversation = useCallback(
     async (id: string) => {
       setCommandError(null);
+      setPendingDeviceAction(null);
       await loadConversation(id);
     },
     [loadConversation],
@@ -356,6 +429,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       setActiveConversationId(null);
       setMessages([]);
       setCommandError(null);
+      setPendingDeviceAction(null);
     }
     await refresh();
   }, [refresh]);
@@ -365,6 +439,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
     setActiveConversationId(null);
     setMessages([]);
     setCommandError(null);
+    setPendingDeviceAction(null);
     setState("idle");
   }, []);
 
@@ -444,6 +519,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       activeConversationId,
       messages,
       settings,
+      pendingDeviceAction,
       refresh,
       refreshTasks,
       createTask: createTaskItem,
@@ -456,6 +532,8 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       selectAIModel,
       clearAIModel,
       sendCommand: send,
+      approveDeviceAction,
+      cancelDeviceAction,
       openConversation,
       deleteConversation,
       startNewConversation,
@@ -492,6 +570,9 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       selectAIModel,
       clearAIModel,
       send,
+      pendingDeviceAction,
+      approveDeviceAction,
+      cancelDeviceAction,
       openConversation,
       deleteConversation,
       startNewConversation,

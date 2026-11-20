@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Download, LoaderCircle, Mic, Square, Volume2, VolumeX } from "lucide-react";
 import { ApiError, downloadVoiceModel, getVoiceStatus, transcribeAudio } from "../services/api.ts";
 import { AstraCore } from "../components/AstraCore.tsx";
+import { DeviceActionApproval } from "../components/DeviceActionApproval.tsx";
 import { ModuleNotice } from "../components/ModuleNotice.tsx";
 import { Panel } from "../components/Panel.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
@@ -23,7 +24,18 @@ function describeError(error: unknown): string {
 }
 
 export function VoicePage() {
-  const { aiStatus, commandError, health, sendCommand, refresh, state } = useAstra();
+  const {
+    aiStatus,
+    commandError,
+    health,
+    sendCommand,
+    refresh,
+    state,
+    pendingDeviceAction,
+    approveDeviceAction,
+    cancelDeviceAction,
+  } = useAstra();
+  const assistantBusy = state === "processing" || state === "thinking" || state === "speaking";
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
   const [language, setLanguage] = useState<TranscriptionLanguage>("auto");
   const [recording, setRecording] = useState(false);
@@ -354,7 +366,7 @@ export function VoicePage() {
                 {!recording ? (
                   <button
                     type="button"
-                    disabled={working}
+                    disabled={working || assistantBusy || Boolean(pendingDeviceAction)}
                     onClick={() => void startRecording()}
                     className="inline-flex items-center gap-2 rounded-full border border-astra-cyan/50 bg-cyan-950/60 px-5 py-3 font-display text-xs tracking-[0.14em] text-cyan-100 hover:bg-cyan-900/60 disabled:opacity-50"
                   >
@@ -403,6 +415,11 @@ export function VoicePage() {
 
           {error ? <p className="text-sm text-astra-danger" role="alert">{error}</p> : null}
           {commandError ? <p className="text-sm text-astra-danger" role="alert">{commandError}</p> : null}
+          <DeviceActionApproval
+            action={pendingDeviceAction}
+            onApprove={approveDeviceAction}
+            onCancel={cancelDeviceAction}
+          />
           {transcript ? (
             <div className="rounded-xl border border-astra-cyan/20 bg-slate-950/45 p-4" aria-live="polite">
               <div className="flex items-center gap-2 text-xs font-display tracking-[0.14em] text-astra-cyan">

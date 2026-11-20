@@ -21,6 +21,9 @@ from app.api.schemas import (
     CommandOut,
     ConversationOut,
     ConversationSummary,
+    DeviceActionIn,
+    DevicePairIn,
+    DevicePairOut,
     HealthResponse,
     GeminiStatusOut,
     InstalledModelOut,
@@ -55,6 +58,12 @@ from app.security.accounts import (
     validate_session_signing_key,
 )
 from app.services.activity import list_activity, record_activity
+from app.services.device_bridge import (
+    confirm_device_action,
+    device_bridge,
+    open_approved_url,
+    validate_public_url,
+)
 from app.services.ai_quota import (
     DAILY_SHARED_MESSAGE_LIMIT,
     release_shared_message,
@@ -62,7 +71,7 @@ from app.services.ai_quota import (
     usage_for_today,
 )
 from app.services.ai_clients import available_ai_clients
-from app.services.automation import AutomationError, available_applications, launch_application
+from app.services.automation import APPLICATION_LABELS, AutomationError, available_applications
 from app.services.chat import (
     delete_conversation,
     get_conversation,
@@ -258,7 +267,7 @@ async def modules(
         voice_module["status"] = "pending"
         voice_module["summary"] = (
             "Browser speech recognition is available in supported browsers; the hosted API receives recognized text. "
-            "Local Whisper and visitor-device controls require a local companion, which is not yet released."
+            "Local Whisper and Windows device actions require the optional local companion."
         )
     elif voice_model_installed():
         voice_module["status"] = "online"
@@ -285,11 +294,17 @@ async def modules(
     )
     automation_module = next(item for item in items if item["id"] == "automation")
     apps = available_applications()
-    automation_module["status"] = "online" if apps else "offline"
-    automation_module["summary"] = (
-        "Windows app launching is only available from a local Windows backend."
+    automation_module["status"] = (
+        "pending"
         if settings.is_vercel_deployment
-        else f"Safe, allowlisted Windows launch actions available: {', '.join(apps)}. No arbitrary shell execution."
+        else "online"
+        if apps
+        else "offline"
+    )
+    automation_module["summary"] = (
+        "Pair the optional Windows companion to open approved apps or public websites. Every action requires an on-device confirmation."
+        if settings.is_vercel_deployment
+        else f"Safe, allowlisted Windows launch actions available: {', '.join(apps)}. Every action requires an on-device confirmation."
         if apps
         else "Windows app launch controls are available only on Windows."
     )
@@ -312,15 +327,110 @@ async def automation_status(_: str | None = Depends(require_identity)) -> list[s
     return available_applications()
 
 
+def _require_local_device_request(request: Request) -> str:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="Device actions are available only through the local companion.")
+    origin = request.headers.get("origin", "")
+    if origin not in get_settings().cors_origin_list:
+        raise HTTPException(status_code=403, detail="Pair ASTRA from an approved ASTRA website origin.")
+    token = request.headers.get("x-astra-device-session", "")
+    if not device_bridge.is_authorized(f"Bearer {token}"):
+        raise HTTPException(status_code=401, detail="Connect this browser to the local ASTRA companion first.")
+    return origin
+
+
+async def _run_local_device_action(
+    request: Request,
+    title: str,
+    application: str | None = None,
+    url: str | None = None,
+) -> str:
+    origin = _require_local_device_request(request)
+    if url is not None:
+        try:
+            url = validate_public_url(url)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        title = f"Open this website in your browser:\n{url}"
+    approved = await run_in_threadpool(confirm_device_action, title, origin)
+    if not approved:
+        raise HTTPException(status_code=403, detail="The action was not approved on this computer.")
+    try:
+        if application is not None:
+            from app.services.automation import launch_application
+
+            return await run_in_threadpool(launch_application, application)
+        if url is not None:
+            return await run_in_threadpool(open_approved_url, url)
+    except AutomationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    raise HTTPException(status_code=422, detail="Choose a supported device action.")
+
+
+@api_router.get("/device/status")
+async def local_device_status(request: Request) -> dict[str, bool]:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="The local companion is not running on the hosted backend.")
+    origin = request.headers.get("origin", "")
+    if origin not in get_settings().cors_origin_list:
+        raise HTTPException(status_code=403, detail="Use an approved ASTRA website origin.")
+    return {"available": True}
+
+
+@api_router.post("/device/pair", response_model=DevicePairOut)
+async def pair_local_device(
+    payload: DevicePairIn,
+    request: Request,
+) -> DevicePairOut:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="The local companion is not running on the hosted backend.")
+    origin = request.headers.get("origin", "")
+    if origin not in get_settings().cors_origin_list:
+        raise HTTPException(status_code=403, detail="Pair ASTRA from an approved ASTRA website origin.")
+    token = device_bridge.pair(payload.pairing_code)
+    if token is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Pairing code is invalid, expired, used, or locked. Restart the companion to get a new code.",
+        )
+    return DevicePairOut(access_token=token, expires_in=12 * 60 * 60)
+
+
+@api_router.delete("/device/session", status_code=204)
+async def revoke_local_device_session(request: Request) -> None:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="The local companion is not running on the hosted backend.")
+    origin = request.headers.get("origin", "")
+    if origin not in get_settings().cors_origin_list:
+        raise HTTPException(status_code=403, detail="Use an approved ASTRA website origin.")
+    device_bridge.revoke(f"Bearer {request.headers.get('x-astra-device-session', '')}")
+
+
+@api_router.post("/device/action")
+async def run_local_device_action(
+    payload: DeviceActionIn,
+    request: Request,
+) -> dict[str, str]:
+    if payload.action == "launch_app" and payload.application is not None:
+        title = f"Open {APPLICATION_LABELS[payload.application]}."
+        message = await _run_local_device_action(request, title, application=payload.application)
+    elif payload.action == "open_url" and payload.url is not None:
+        message = await _run_local_device_action(request, "", url=payload.url)
+    else:
+        raise HTTPException(status_code=422, detail="Choose one supported device action.")
+    return {"action": payload.action, "message": message}
+
+
 @api_router.post("/automation/launch", response_model=AutomationLaunchOut)
 async def automation_launch(
     payload: AutomationLaunchIn,
-    _: str | None = Depends(require_identity),
+    request: Request,
 ) -> AutomationLaunchOut:
-    try:
-        message = await run_in_threadpool(launch_application, payload.application)
-    except AutomationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    message = await _run_local_device_action(
+        request,
+        f"Open {APPLICATION_LABELS[payload.application]}.",
+        application=payload.application,
+    )
     return AutomationLaunchOut(application=payload.application, message=message)
 
 

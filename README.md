@@ -52,7 +52,13 @@ Visitors continue as guests without email or password. ASTRA creates a random gu
 
 Each guest identity can send 20 AI messages per UTC day using the project's configured provider keys. Those requests are paid by the project owner and the allowance is enforced in PostgreSQL; guest creation is also rate-limited per source IP. After that, guests can add their own Gemini or OpenAI key in Settings; ASTRA holds it in browser session storage and sends it only with chat requests, while their provider may bill them directly. Never commit secrets or put provider keys in frontend build variables.
 
-The hosted backend persists guest-scoped chats, tasks, approved memories, settings, quota usage, and activity in PostgreSQL. Guest access does not grant ASTRA automatic access to visitor files, screens, or sensors; browser APIs ask for permission, and local Windows actions/Whisper need a local companion. No downloadable local companion release exists yet. System readings on Vercel describe the hosted runtime, not the visitor's device. WebSockets are disabled in production and chat uses the HTTP streaming API.
+The hosted backend persists guest-scoped chats, tasks, approved memories, settings, quota usage, and activity in PostgreSQL. Vercel system readings describe the hosted runtime, not a visitor's device. WebSockets are disabled in production and chat uses the HTTP streaming API.
+
+### Optional Windows companion
+
+A website cannot access Windows apps or files by itself. To let the hosted site request local actions, the visitor must download the repository, run `install_companion.bat` once, then `start_companion.bat`. The local API binds to `127.0.0.1`; its console prints a one-use pairing code that expires after five minutes. Pairing is tab-scoped, lasts up to 12 hours, and can be revoked in ASTRA. Chrome or Edge also asks for local-network access. Every supported action requires a confirmation dialog on Windows, and ASTRA never runs arbitrary shell commands.
+
+The current companion actions are deliberately limited to opening allowlisted apps (VS Code, Chrome, and Windows Settings) and public HTTP(S) websites. Chat and Voice recognize only direct, explicit open-app/open-website requests. Screen capture, microphone use, and local camera preview use browser permission prompts; the camera preview is not uploaded. A visitor may select a plain-text file up to 100 KB and explicitly confirm sending it to the conversation. Folder-wide access, arbitrary webpage clicking, keyboard/mouse control, camera uploads to AI, and changing Windows system settings are not implemented; opening the website does not grant those capabilities.
 
 ## Local AI setup
 

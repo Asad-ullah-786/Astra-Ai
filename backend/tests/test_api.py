@@ -183,6 +183,22 @@ def test_vercel_mode_requires_token_and_accepts_public_host(client, monkeypatch)
     assert protected.status_code == 401
 
 
+def test_hosted_api_never_runs_local_device_actions(client, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("VERCEL", "1")
+    get_settings.cache_clear()
+    try:
+        response = client.post(
+            "/api/v1/device/action",
+            json={"action": "launch_app", "application": "chrome"},
+            headers={"origin": "https://astra-ai-786.vercel.app"},
+        )
+        assert response.status_code == 404
+    finally:
+        get_settings.cache_clear()
+
+
 def test_postgres_url_uses_asyncpg_and_translates_sslmode():
     url, connect_args = _database_connection_options(
         "postgresql://user:password@db.example/app?sslmode=require&channel_binding=require",
@@ -414,12 +430,87 @@ def test_approved_memory_crud_and_local_chat_context(client, monkeypatch):
 
 
 def test_allowlisted_automation_launch(client, monkeypatch):
-    monkeypatch.setattr("app.api.router.launch_application", lambda application: f"Opened {application}.")
-    response = client.post("/api/v1/automation/launch", json={"application": "chrome"})
+    launched: list[str] = []
+
+    def fake_launch(application: str) -> str:
+        launched.append(application)
+        return f"Opened {application}."
+
+    monkeypatch.setattr("app.services.automation.launch_application", fake_launch)
+    monkeypatch.setattr("app.api.router.confirm_device_action", lambda action, origin: True)
+    monkeypatch.setattr("app.api.router.open_approved_url", lambda url: f"Opened {url} in your default browser.")
+    from app.services.device_bridge import device_bridge
+
+    pairing_code = device_bridge.start()
+    origin = "http://127.0.0.1:5173"
+    pair_response = client.post(
+        "/api/v1/device/pair",
+        json={"pairing_code": pairing_code},
+        headers={"origin": origin},
+    )
+    assert pair_response.status_code == 200
+    device_headers = {
+        "origin": origin,
+        "x-astra-device-session": pair_response.json()["access_token"],
+    }
+
+    response = client.post(
+        "/api/v1/automation/launch",
+        json={"application": "chrome"},
+        headers=device_headers,
+    )
     assert response.status_code == 200
     assert response.json() == {"application": "chrome", "message": "Opened chrome."}
-    rejected = client.post("/api/v1/automation/launch", json={"application": "powershell"})
+    website = client.post(
+        "/api/v1/device/action",
+        json={"action": "open_url", "url": "https://example.com"},
+        headers=device_headers,
+    )
+    assert website.status_code == 200
+    assert website.json() == {"action": "open_url", "message": "Opened https://example.com in your default browser."}
+    private_website = client.post(
+        "/api/v1/device/action",
+        json={"action": "open_url", "url": "http://127.0.0.1:8787"},
+        headers=device_headers,
+    )
+    assert private_website.status_code == 422
+    rejected = client.post(
+        "/api/v1/automation/launch",
+        json={"application": "powershell"},
+        headers=device_headers,
+    )
     assert rejected.status_code == 422
+    denied = client.post(
+        "/api/v1/device/action",
+        json={"action": "launch_app", "application": "chrome"},
+        headers={**device_headers, "origin": "https://evil.example"},
+    )
+    assert denied.status_code == 403
+    monkeypatch.setattr("app.api.router.confirm_device_action", lambda action, origin: False)
+    declined = client.post(
+        "/api/v1/device/action",
+        json={"action": "launch_app", "application": "chrome"},
+        headers=device_headers,
+    )
+    assert declined.status_code == 403
+    assert launched == ["chrome"]
+    client.delete("/api/v1/device/session", headers=device_headers)
+    assert client.post(
+        "/api/v1/device/action",
+        json={"action": "launch_app", "application": "chrome"},
+        headers=device_headers,
+    ).status_code == 401
+    assert client.post(
+        "/api/v1/device/pair",
+        json={"pairing_code": device_bridge.start()},
+        headers={"origin": "https://evil.example"},
+    ).status_code == 403
+    assert client.post(
+        "/api/v1/device/pair",
+        json={"pairing_code": pairing_code},
+        headers={"origin": origin},
+    ).status_code == 401
+    device_bridge.stop()
 
 
 def test_free_research_search_returns_sources(client, monkeypatch):

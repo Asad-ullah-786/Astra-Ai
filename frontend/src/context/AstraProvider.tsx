@@ -109,6 +109,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
         setMessages([]);
       }
     }
+    setConnectionError(null);
   }, [loadConversation]);
 
   const refreshTasks = useCallback(async () => {
@@ -125,10 +126,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
     let wasOnline = false;
     const tick = async () => {
       try {
-        const [nextHealth, nextStats] = await Promise.all([
-          apiGet<HealthResponse>("/api/v1/health"),
-          apiGet<SystemSnapshot>("/api/v1/system"),
-        ]);
+        const nextHealth = await apiGet<HealthResponse>("/api/v1/health");
         if (stopped) {
           return;
         }
@@ -136,9 +134,17 @@ export function AstraProvider({ children }: { children: ReactNode }) {
         wasOnline = nextHealth.status === "online";
         hasCheckedStatus = true;
         setHealth(nextHealth);
-        setStats(nextStats);
         setOnline(nextHealth.status === "online");
-        setConnectionError(null);
+
+        try {
+          const nextStats = await apiGet<SystemSnapshot>("/api/v1/system");
+          if (stopped) return;
+          setStats(nextStats);
+          setConnectionError(null);
+        } catch (error) {
+          if (!stopped) setConnectionError(describe(error));
+        }
+
         if (recovered) {
           void refresh().catch((error: unknown) => {
             if (!stopped) setConnectionError(describe(error));
@@ -149,6 +155,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
           hasCheckedStatus = true;
           wasOnline = false;
           setOnline(false);
+          setHealth(null);
           setConnectionError(describe(error));
         }
       }

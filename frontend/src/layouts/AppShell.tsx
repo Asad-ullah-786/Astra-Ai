@@ -26,6 +26,7 @@ import { CommandBar } from "../components/CommandBar.tsx";
 import { Waveform } from "../components/Waveform.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
 import { useClock } from "../hooks/useClock.ts";
+import { apiGet, getApiToken } from "../services/api.ts";
 import type { AssistantState, CommandSendOptions } from "../types/index.ts";
 
 const NAV = [
@@ -70,6 +71,7 @@ const noAnalyser = () => null;
 
 export function AppShell() {
   const {
+    health,
     online,
     settings,
     modules,
@@ -79,6 +81,8 @@ export function AppShell() {
     commandError,
     sendCommand,
     connectionError,
+    refresh,
+    saveApiToken,
   } = useAstra();
   const now = useClock();
   const location = useLocation();
@@ -90,6 +94,9 @@ export function AppShell() {
   const [searchError, setSearchError] = useState("");
   const [focusMode, setFocusMode] = useState(false);
   const [networkOnline, setNetworkOnline] = useState(() => navigator.onLine);
+  const [apiToken, setApiToken] = useState(() => getApiToken());
+  const [tokenSubmitting, setTokenSubmitting] = useState(false);
+  const [tokenError, setTokenError] = useState("");
   const [appMenuOpen, setAppMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const appMenuRef = useRef<HTMLDivElement>(null);
@@ -98,6 +105,10 @@ export function AppShell() {
   const clock = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const date = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const pendingTaskCount = tasks.filter((task) => !task.completed).length;
+  const tokenRequired = Boolean(
+    health?.auth_required &&
+    connectionError?.startsWith("This backend requires an API token."),
+  );
 
   useEffect(() => {
     const updateNetwork = () => setNetworkOnline(navigator.onLine);
@@ -139,9 +150,35 @@ export function AppShell() {
       setSearchError("No matching ASTRA page");
       return;
     }
+
     setSearchError("");
     setQuery("");
     navigate(match.to);
+  }
+
+  async function applyApiToken(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cleaned = apiToken.trim();
+    if (!cleaned) {
+      setTokenError("Paste the ASTRA_API_TOKEN configured for this Vercel deployment.");
+      return;
+    }
+
+    setTokenSubmitting(true);
+    setTokenError("");
+    saveApiToken(cleaned);
+    try {
+      await apiGet("/api/v1/settings");
+      await refresh();
+    } catch (error) {
+      setTokenError(
+        error instanceof Error
+          ? error.message
+          : "The token could not be verified. Check it and try again.",
+      );
+    } finally {
+      setTokenSubmitting(false);
+    }
   }
 
   function sendFromConsole(text: string, options?: CommandSendOptions) {
@@ -214,7 +251,7 @@ export function AppShell() {
           <div className="astra-system-status">
             <span>SYSTEM STATUS</span>
             <span className={online ? "is-online" : "is-offline"}>
-              <i /> {online ? "ONLINE" : "OFFLINE"}
+              <i /> {online ? (tokenRequired ? "AUTH REQUIRED" : "ONLINE") : "OFFLINE"}
             </span>
           </div>
 
@@ -306,7 +343,34 @@ export function AppShell() {
           </div>
         </header>
 
-        {connectionError ? (
+        {tokenRequired ? (
+          <section className="astra-connection-error flex flex-wrap items-center gap-3" aria-label="Backend authentication">
+            <p className="m-0 flex-1" role="status">
+              Backend is online. Enter its API token to unlock your private data and AI features.
+            </p>
+            <form className="flex min-w-0 flex-1 flex-wrap gap-2 sm:flex-nowrap" onSubmit={(event) => void applyApiToken(event)}>
+              <label className="sr-only" htmlFor="connection-api-token">ASTRA API token</label>
+              <input
+                id="connection-api-token"
+                type="password"
+                autoComplete="off"
+                value={apiToken}
+                onChange={(event) => setApiToken(event.target.value)}
+                placeholder="Paste ASTRA_API_TOKEN"
+                className="min-w-0 flex-1 rounded-lg border border-astra-cyan/30 bg-black/50 px-3 py-1.5 text-sm text-astra-text outline-none focus:border-astra-cyan"
+              />
+              <button
+                type="submit"
+                disabled={tokenSubmitting}
+                className="rounded-lg border border-astra-cyan/40 px-3 py-1.5 text-xs text-astra-cyan disabled:opacity-50"
+              >
+                {tokenSubmitting ? "CHECKING..." : "CONNECT"}
+              </button>
+            </form>
+            {tokenError ? <p className="m-0 w-full" role="alert">{tokenError}</p> : null}
+            <NavLink to="/settings" className="text-xs text-astra-cyan underline">Token settings</NavLink>
+          </section>
+        ) : connectionError ? (
           <p className="astra-connection-error" role="alert">{connectionError}</p>
         ) : null}
 

@@ -22,6 +22,7 @@ Advanced Smart Technology & Responsive Assistant. ASTRA is a local-first persona
 - Free DuckDuckGo web search with source links. Search requests go to DuckDuckGo; search history stores only that a search completed, not the query.
 - Allowlisted Windows app launching (VS Code, Chrome, Settings) and one-frame screen capture through the browser's user-controlled share picker. Arbitrary shell execution is not available.
 - English/Urdu push-to-talk transcription using the local `faster-whisper-tiny` model. Recording starts only after the user presses the microphone button; audio stays on the PC, is held temporarily, and is deleted after processing.
+- On the hosted site, speech input uses the browser's speech-recognition API where supported; ASTRA receives recognized text, not the audio recording. Browser speech services may process audio under their own privacy policies.
 - A calendar, knowledge search, skills directory, and agent/module pages backed by real local data and capability status. These are user-triggered capabilities, not autonomous background agents.
 - Optional API token. Set `ASTRA_API_TOKEN` in `backend/.env`, then paste the same value in Settings. The browser keeps it in session storage.
 
@@ -41,15 +42,17 @@ Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The API docs are at [http:/
 
 ## Vercel full-stack deployment
 
-The root `vercel.json` deploys the React frontend and FastAPI backend as Vercel Services. Set the Vercel project's Root Directory to the repository root. Add these secrets in the Vercel project settings before using the hosted API:
+The root `vercel.json` deploys the React frontend and FastAPI backend as Vercel Services. Set the Vercel project's Root Directory to the repository root. Configure these server-side environment variables before enabling the hosted API:
 
 - `ASTRA_DATABASE_URL`: a pooled managed PostgreSQL connection URL. The backend also accepts `DATABASE_URL` or `POSTGRES_URL`.
-- `ASTRA_API_TOKEN`: a long, unique bearer token. Hosted API routes fail closed unless this token is configured.
-- `GEMINI_API_KEY`: the Google Gemini key used for hosted chat.
+- `ASTRA_API_TOKEN`: a unique secret at least 32 characters long. It signs account sessions; visitors must not receive or enter this value.
+- `GEMINI_API_KEY` and/or `OPENAI_API_KEY`: project-owned provider keys used for shared-key chat.
 
-Enter the same `ASTRA_API_TOKEN` in ASTRA Settings, then select an available Gemini model. Never commit these values or put provider keys in frontend environment variables.
+Visitors create separate email/password accounts. Passwords are stored as PBKDF2 hashes, and API routes scope chats, memories, tasks, settings, and activity to the signed-in account. Existing pre-account records are left unassigned and hidden rather than being exposed to whichever account signs up first. The current account flow does not yet include email verification or password recovery; accounts use 12-hour browser-session tokens.
 
-The hosted backend persists chats, tasks, approved memories, settings, and activity in PostgreSQL. Vercel does not provide ASTRA with the local PC's Ollama process, Windows app launching, local speech-model files, or a persistent reminder worker. Voice transcription and Windows actions therefore remain local-backend features; system readings on Vercel describe the hosted runtime, not the user's device. WebSockets are disabled in production and chat uses the HTTP streaming API.
+Each account can send 20 AI messages per UTC day using the project's configured provider keys. Those requests are paid by the project owner and the allowance is enforced in PostgreSQL. After that, users can add their own Gemini or OpenAI key in Settings; ASTRA holds it in browser session storage and sends it only with chat requests, while their provider may bill them directly. Never commit secrets or put provider keys in frontend build variables.
+
+The hosted backend persists account-scoped chats, tasks, approved memories, settings, quota usage, and activity in PostgreSQL. Vercel does not provide ASTRA with a visitor's Ollama process, Windows app launching, local speech-model files, or a persistent reminder worker. Browser speech recognition is offered where available; Windows actions and local Whisper remain device-only. No downloadable local companion release exists yet. System readings on Vercel describe the hosted runtime, not the user's device. WebSockets are disabled in production and chat uses the HTTP streaming API.
 
 ## Local AI setup
 

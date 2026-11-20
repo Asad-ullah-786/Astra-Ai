@@ -15,6 +15,7 @@ async def issue_due_task_reminders(session: AsyncSession) -> int:
     now = utcnow()
     due_tasks = await session.scalars(
         select(TaskItem).where(
+            TaskItem.owner_id.is_(None),
             TaskItem.completed.is_(False),
             TaskItem.due_at.is_not(None),
             TaskItem.due_at <= now,
@@ -27,6 +28,7 @@ async def issue_due_task_reminders(session: AsyncSession) -> int:
             update(TaskItem)
             .where(
                 TaskItem.id == task.id,
+                TaskItem.owner_id.is_(None),
                 TaskItem.completed.is_(False),
                 TaskItem.due_at <= now,
                 TaskItem.reminded_at.is_(None),
@@ -41,6 +43,7 @@ async def issue_due_task_reminders(session: AsyncSession) -> int:
                 f"Task reminder: {task.title}",
                 "This task is due.",
                 session=session,
+                owner_id=task.owner_id,
             )
             sent += 1
     if sent:

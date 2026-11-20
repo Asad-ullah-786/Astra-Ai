@@ -3,7 +3,7 @@ import asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.database.session import _migrate_task_status, sqlite_file_from_url
+from app.database.session import _migrate_account_ownership, _migrate_task_status, sqlite_file_from_url
 from app.services.settings import clean_display_name
 import pytest
 
@@ -36,6 +36,29 @@ def test_existing_task_table_gets_in_progress_column():
                 text("SELECT in_progress FROM tasks WHERE id = 'existing-task'")
             )).one()
             assert task.in_progress == 0
+        await engine.dispose()
+
+    asyncio.run(verify_migration())
+
+
+def test_existing_records_remain_unowned_during_account_migration():
+    async def verify_migration():
+        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        tables = ("conversations", "messages", "activity_logs", "tasks", "personal_memories")
+        async with engine.begin() as connection:
+            for table in tables:
+                await connection.execute(text(f"CREATE TABLE {table} (id TEXT PRIMARY KEY, title TEXT)"))
+                await connection.execute(
+                    text(f"INSERT INTO {table} (id, title) VALUES ('legacy', 'keep me')")
+                )
+            await _migrate_account_ownership(connection)
+            await _migrate_account_ownership(connection)
+            for table in tables:
+                row = (await connection.execute(
+                    text(f"SELECT title, owner_id FROM {table} WHERE id = 'legacy'")
+                )).one()
+                assert row.title == "keep me"
+                assert row.owner_id is None
         await engine.dispose()
 
     asyncio.run(verify_migration())

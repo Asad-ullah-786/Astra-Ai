@@ -14,6 +14,21 @@ import type {
 } from "../types/index.ts";
 
 const TOKEN_KEY = "astra.apiToken";
+const PERSONAL_PROVIDER_KEY = "astra.personalProviderKey";
+const PERSONAL_PROVIDER_NAME = "astra.personalProvider";
+
+export interface AccountSession {
+  access_token: string;
+  token_type: "bearer";
+  expires_in: number;
+  account: { id: string; email: string };
+}
+
+export interface AIUsage {
+  used_today: number;
+  daily_limit: number | null;
+  remaining: number | null;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -35,6 +50,54 @@ export function setApiToken(token: string): void {
   } else {
     sessionStorage.removeItem(TOKEN_KEY);
   }
+}
+
+export async function authenticateAccount(
+  email: string,
+  password: string,
+  mode: "login" | "register",
+): Promise<AccountSession> {
+  const response = await fetch(`${apiBase()}/api/v1/auth/${mode}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, await errorMessage(response));
+  }
+  const session = (await response.json()) as AccountSession;
+  setApiToken(session.access_token);
+  return session;
+}
+
+export function setPersonalProviderCredentials(provider: string, key: string): void {
+  const cleaned = key.trim();
+  if (!cleaned) {
+    sessionStorage.removeItem(PERSONAL_PROVIDER_KEY);
+    sessionStorage.removeItem(PERSONAL_PROVIDER_NAME);
+    return;
+  }
+  sessionStorage.setItem(PERSONAL_PROVIDER_KEY, cleaned);
+  sessionStorage.setItem(PERSONAL_PROVIDER_NAME, provider);
+}
+
+function personalProviderCredentials(): { key: string; provider: string } | null {
+  const key = sessionStorage.getItem(PERSONAL_PROVIDER_KEY) ?? "";
+  const provider = sessionStorage.getItem(PERSONAL_PROVIDER_NAME) ?? "";
+  return key && provider ? { key, provider } : null;
+}
+
+export function getPersonalProviderName(): string {
+  return sessionStorage.getItem(PERSONAL_PROVIDER_NAME) ?? "gemini";
+}
+
+export function hasPersonalProviderKey(): boolean {
+  return Boolean(sessionStorage.getItem(PERSONAL_PROVIDER_KEY));
+}
+
+export function clearPersonalProviderCredentials(): void {
+  sessionStorage.removeItem(PERSONAL_PROVIDER_KEY);
+  sessionStorage.removeItem(PERSONAL_PROVIDER_NAME);
 }
 
 function apiBase(): string {
@@ -115,9 +178,16 @@ export async function streamCommand(
   conversationId: string | null,
   onEvent: (event: AIStreamEvent) => void,
   responseLanguage?: string,
+  providerKey?: string,
+  providerName?: string,
 ): Promise<void> {
   const headers = authHeaders();
   headers.set("Content-Type", "application/json");
+  const personalKey = providerKey ? { key: providerKey, provider: providerName ?? "" } : personalProviderCredentials();
+  if (personalKey) {
+    headers.set("X-Astra-Provider-Key", personalKey.key);
+    headers.set("X-Astra-Provider", personalKey.provider);
+  }
   const response = await fetch(`${apiBase()}/api/v1/commands/stream`, {
     method: "POST",
     headers,
@@ -161,6 +231,10 @@ export async function streamCommand(
       break;
     }
   }
+}
+
+export function getAIUsage(): Promise<AIUsage> {
+  return apiGet<AIUsage>("/api/v1/account/usage");
 }
 
 export function deleteConversation(conversationId: string): Promise<void> {

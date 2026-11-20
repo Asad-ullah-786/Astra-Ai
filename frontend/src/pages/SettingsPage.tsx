@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Panel } from "../components/Panel.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
 import { getCloudModelPricingLabel, getLocalModelDownloadQueue } from "../lib/llmProviders.ts";
-import { getApiToken } from "../services/api.ts";
+import {
+  getAIUsage,
+  getApiToken,
+  getPersonalProviderName,
+  hasPersonalProviderKey,
+  setPersonalProviderCredentials,
+  type AIUsage,
+} from "../services/api.ts";
 
 export function SettingsPage() {
   const { settings, health, aiStatus, stats, saveDisplayName, saveApiToken, selectAIModel, clearAIModel, refreshAI } = useAstra();
@@ -11,6 +18,10 @@ export function SettingsPage() {
   const [modelOverride, setModelOverride] = useState<string | null>(null);
   const [geminiModelOverride, setGeminiModelOverride] = useState<string | null>(null);
   const [openaiModelOverride, setOpenAIModelOverride] = useState<string | null>(null);
+  const [usage, setUsage] = useState<AIUsage | null>(null);
+  const [personalProvider, setPersonalProvider] = useState(getPersonalProviderName);
+  const [personalKey, setPersonalKey] = useState("");
+  const [hasPersonalKey, setHasPersonalKey] = useState(hasPersonalProviderKey);
   const name = nameOverride ?? settings?.user_display_name ?? "";
   const selectedModel = aiStatus?.selected_model ?? "";
   const geminiStatus = aiStatus?.gemini;
@@ -22,6 +33,13 @@ export function SettingsPage() {
   const selectedOpenAIModel = openaiModelOverride ?? (selectedModel.startsWith("openai:") ? selectedModel.slice("openai:".length) : "");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!health?.cloud_deployment) return;
+    void getAIUsage()
+      .then(setUsage)
+      .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Could not load today's AI usage."));
+  }, [health?.cloud_deployment]);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
@@ -57,6 +75,75 @@ export function SettingsPage() {
           </button>
         </form>
       </Panel>
+
+      {health?.cloud_deployment ? (
+        <Panel title="CLOUD MESSAGE ALLOWANCE · PERSONAL API KEY">
+          <p className="text-sm leading-6 text-astra-muted">
+            {usage?.daily_limit == null
+              ? "Loading your daily shared-key allowance..."
+              : `${usage.remaining} of ${usage.daily_limit} shared-key AI messages remain today (${usage.used_today} used, UTC day).`}
+            {" "}The project owner pays for shared-key requests. After the daily allowance, add your own Gemini or OpenAI key;
+            your provider may bill you directly.
+          </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <label className="sr-only" htmlFor="personal-provider">Personal API-key provider</label>
+            <select
+              id="personal-provider"
+              value={personalProvider}
+              onChange={(event) => setPersonalProvider(event.target.value)}
+              className="rounded-xl border border-astra-cyan/30 bg-[#080d18] px-4 py-3 outline-none focus:border-astra-cyan"
+            >
+              <option value="gemini">Google Gemini</option>
+              <option value="openai">OpenAI</option>
+            </select>
+            <label className="sr-only" htmlFor="personal-provider-key">Personal provider API key</label>
+            <input
+              id="personal-provider-key"
+              type="password"
+              autoComplete="off"
+              value={personalKey}
+              onChange={(event) => setPersonalKey(event.target.value)}
+              placeholder={hasPersonalKey ? "Key saved for this browser tab" : "Paste your provider API key"}
+              className="min-w-0 flex-1 rounded-xl border border-astra-cyan/30 bg-black/40 px-4 py-3 outline-none focus:border-astra-cyan"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (!personalKey.trim()) {
+                  setError("Paste your personal API key before saving it.");
+                  return;
+                }
+                setPersonalProviderCredentials(personalProvider, personalKey);
+                setPersonalKey("");
+                setHasPersonalKey(true);
+                setError(null);
+                setNotice("Personal API key saved for this browser tab only.");
+              }}
+              className="rounded-xl border border-astra-cyan/40 px-4 py-3 font-display text-xs tracking-[0.16em] text-astra-cyan"
+            >
+              SAVE FOR THIS TAB
+            </button>
+            {hasPersonalKey ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPersonalProviderCredentials(personalProvider, "");
+                  setHasPersonalKey(false);
+                  setPersonalKey("");
+                  setNotice("Personal API key removed from this browser tab.");
+                }}
+                className="rounded-xl border border-astra-danger/40 px-4 py-3 font-display text-xs tracking-[0.16em] text-astra-danger"
+              >
+                REMOVE KEY
+              </button>
+            ) : null}
+          </div>
+          <p className="mt-3 text-xs leading-5 text-astra-muted">
+            ASTRA does not save this key on its server. It is held in this tab's session storage and sent over HTTPS only
+            with AI requests. Your provider handles its key, billing, and data policies.
+          </p>
+        </Panel>
+      ) : null}
 
       <Panel title="API TOKEN">
         <p className="mb-3 text-sm leading-6 text-astra-muted">

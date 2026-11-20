@@ -43,7 +43,7 @@ import type {
 function describe(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) {
-      return "This backend requires an API token. Enter it in Settings. It stays in this browser session only.";
+      return "Sign in to your ASTRA account or connect the local backend token.";
     }
     return error.message;
   }
@@ -320,7 +320,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
           } else if (event.type === "error") {
             throw new Error(event.message ?? "The local AI response failed.");
           }
-        }, options?.responseLanguage);
+        }, options?.responseLanguage, options?.providerKey, options?.providerName);
         if (!receivedMeta) {
           throw new Error("ASTRA ended the response without starting the conversation.");
         }

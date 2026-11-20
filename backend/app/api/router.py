@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import asyncio
 import json
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,10 @@ from starlette.concurrency import run_in_threadpool
 from app.ai.provider import AIProviderError, GeminiProvider, InstalledModel, OpenAIProvider, get_language_model
 from app.api.schemas import (
     AIStatusOut,
+    AccountCredentialsIn,
+    AccountOut,
+    AccountSessionOut,
+    AIUsageOut,
     ActivityOut,
     AutomationLaunchIn,
     AutomationLaunchOut,
@@ -42,8 +46,23 @@ from app.api.schemas import (
 from app.config import get_settings
 from app.core.modules import MODULES
 from app.database.session import get_session
-from app.security.access import require_token
+from app.database.models import User
+from app.security.accounts import (
+    SESSION_HOURS,
+    authenticate_account,
+    create_session_token,
+    enforce_auth_rate_limit,
+    register_account,
+    require_identity,
+    validate_session_signing_key,
+)
 from app.services.activity import list_activity, record_activity
+from app.services.ai_quota import (
+    DAILY_SHARED_MESSAGE_LIMIT,
+    release_shared_message,
+    reserve_shared_message,
+    usage_for_today,
+)
 from app.services.ai_clients import available_ai_clients
 from app.services.automation import AutomationError, available_applications, launch_application
 from app.services.chat import (
@@ -108,19 +127,112 @@ async def health(session: AsyncSession = Depends(get_session)) -> HealthResponse
         database=database,
         auth_required=settings.auth_required,
         cloud_deployment=settings.is_vercel_deployment,
-        model=await read_ai_model(session) or "none",
+        model=("none" if settings.is_vercel_deployment else await read_ai_model(session)) or "none",
         time_utc=datetime.now(timezone.utc),
     )
 
 
+def _account_session(user: User) -> AccountSessionOut:
+    return AccountSessionOut(
+        access_token=create_session_token(user.id),
+        expires_in=SESSION_HOURS * 60 * 60,
+        account=AccountOut(id=user.id, email=user.email),
+    )
+
+
+@api_router.post("/auth/register", response_model=AccountSessionOut, status_code=201)
+async def register(
+    payload: AccountCredentialsIn,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> AccountSessionOut:
+    if not get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="Account sign-up is available on the hosted ASTRA service.")
+    try:
+        validate_session_signing_key()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    await enforce_auth_rate_limit(
+        session,
+        request,
+        "register-ip",
+        "all",
+        maximum=5,
+        window_minutes=60,
+    )
+    user = await register_account(session, payload.email, payload.password)
+    return _account_session(user)
+
+
+@api_router.post("/auth/login", response_model=AccountSessionOut)
+async def login(
+    payload: AccountCredentialsIn,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> AccountSessionOut:
+    if not get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="Account sign-in is available on the hosted ASTRA service.")
+    try:
+        validate_session_signing_key()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    await enforce_auth_rate_limit(
+        session,
+        request,
+        "login-ip",
+        "all",
+        maximum=20,
+        window_minutes=15,
+    )
+    await enforce_auth_rate_limit(
+        session,
+        request,
+        "login-email",
+        payload.email,
+        maximum=10,
+        window_minutes=15,
+    )
+    user = await authenticate_account(session, payload.email, payload.password)
+    return _account_session(user)
+
+
+@api_router.get("/auth/me", response_model=AccountOut)
+async def current_account(
+    user_id: str | None = Depends(require_identity),
+    session: AsyncSession = Depends(get_session),
+) -> AccountOut:
+    if user_id is None:
+        raise HTTPException(status_code=404, detail="Accounts are not enabled for the local backend.")
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=401, detail="This account session is no longer valid. Sign in again.")
+    return AccountOut(id=user.id, email=user.email)
+
+
+@api_router.get("/account/usage", response_model=AIUsageOut)
+async def account_usage(
+    user_id: str | None = Depends(require_identity),
+    session: AsyncSession = Depends(get_session),
+) -> AIUsageOut:
+    used = await usage_for_today(session, user_id)
+    if user_id is None or not get_settings().is_vercel_deployment:
+        return AIUsageOut(used_today=used, daily_limit=None, remaining=None)
+    remaining = max(0, DAILY_SHARED_MESSAGE_LIMIT - used)
+    return AIUsageOut(
+        used_today=used,
+        daily_limit=DAILY_SHARED_MESSAGE_LIMIT,
+        remaining=remaining,
+    )
+
+
 @api_router.get("/system", response_model=SystemSnapshot)
-async def system(_: None = Depends(require_token)) -> SystemSnapshot:
+async def system(_: str | None = Depends(require_identity)) -> SystemSnapshot:
     return SystemSnapshot(**system_snapshot())
 
 
 @api_router.get("/modules", response_model=list[ModuleInfo])
 async def modules(
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> list[ModuleInfo]:
     items = [dict(item) for item in MODULES]
@@ -131,7 +243,7 @@ async def modules(
     ai_module = next(item for item in items if item["id"] == "ai")
     selected: str | None = None
     try:
-        selected = await read_ai_model(session)
+        selected = await read_ai_model(session, user_id)
         if settings.is_vercel_deployment and not (
             selected and selected.startswith(("gemini:", "openai:"))
         ):
@@ -172,7 +284,10 @@ async def modules(
     voice_module = next(item for item in items if item["id"] == "voice")
     if settings.is_vercel_deployment:
         voice_module["status"] = "pending"
-        voice_module["summary"] = "Local speech transcription is unavailable in the hosted backend."
+        voice_module["summary"] = (
+            "Browser speech recognition is available in supported browsers; the hosted API receives recognized text. "
+            "Local Whisper and visitor-device controls require a local companion, which is not yet released."
+        )
     elif voice_model_installed():
         voice_module["status"] = "online"
         voice_module["summary"] = (
@@ -221,14 +336,14 @@ async def modules(
 
 
 @api_router.get("/automation/status", response_model=list[str])
-async def automation_status(_: None = Depends(require_token)) -> list[str]:
+async def automation_status(_: str | None = Depends(require_identity)) -> list[str]:
     return available_applications()
 
 
 @api_router.post("/automation/launch", response_model=AutomationLaunchOut)
 async def automation_launch(
     payload: AutomationLaunchIn,
-    _: None = Depends(require_token),
+    _: str | None = Depends(require_identity),
 ) -> AutomationLaunchOut:
     try:
         message = await run_in_threadpool(launch_application, payload.application)
@@ -239,29 +354,29 @@ async def automation_launch(
 
 @api_router.get("/memory", response_model=list[MemoryOut])
 async def memories(
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> list[MemoryOut]:
-    return [MemoryOut.model_validate(item) for item in await list_memories(session)]
+    return [MemoryOut.model_validate(item) for item in await list_memories(session, user_id)]
 
 
 @api_router.post("/memory", response_model=MemoryOut, status_code=201)
 async def post_memory(
     payload: MemoryCreateIn,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> MemoryOut:
-    return MemoryOut.model_validate(await create_memory(session, payload))
+    return MemoryOut.model_validate(await create_memory(session, payload, user_id))
 
 
 @api_router.patch("/memory/{memory_id}", response_model=MemoryOut)
 async def patch_memory(
     memory_id: str,
     payload: MemoryUpdateIn,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> MemoryOut:
-    memory = await get_memory(session, memory_id)
+    memory = await get_memory(session, memory_id, user_id)
     if memory is None:
         raise HTTPException(status_code=404, detail="Memory not found.")
     return MemoryOut.model_validate(await update_memory(session, memory, payload))
@@ -270,10 +385,10 @@ async def patch_memory(
 @api_router.delete("/memory/{memory_id}", status_code=204)
 async def remove_memory(
     memory_id: str,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> None:
-    memory = await get_memory(session, memory_id)
+    memory = await get_memory(session, memory_id, user_id)
     if memory is None:
         raise HTTPException(status_code=404, detail="Memory not found.")
     await delete_memory(session, memory)
@@ -282,7 +397,7 @@ async def remove_memory(
 @api_router.post("/research/search", response_model=ResearchSearchOut)
 async def research_search(
     payload: ResearchSearchIn,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> ResearchSearchOut:
     try:
@@ -295,6 +410,7 @@ async def research_search(
         "Web research completed.",
         f"{len(results)} source(s) returned.",
         session=session,
+        owner_id=user_id,
     )
     await session.commit()
     return ResearchSearchOut(
@@ -361,10 +477,10 @@ async def _ollama_models_status() -> tuple[list[InstalledModel], str | None]:
 
 @api_router.get("/ai/status", response_model=AIStatusOut)
 async def ai_status(
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> AIStatusOut:
-    selected = await read_ai_model(session)
+    selected = await read_ai_model(session, user_id)
     (models, ollama_error), gemini_status, openai_status = await asyncio.gather(
         _ollama_models_status(),
         _gemini_status(),
@@ -384,7 +500,7 @@ async def ai_status(
 @api_router.put("/ai/model", response_model=AIStatusOut)
 async def select_ai_model(
     payload: ModelSelectionIn,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> AIStatusOut:
     if payload.model.startswith("gemini:"):
@@ -412,26 +528,26 @@ async def select_ai_model(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         if not any(item.name == payload.model for item in models):
             raise HTTPException(status_code=422, detail="Choose a model installed in Ollama on this computer.")
-    await write_ai_model(session, payload.model)
-    return await ai_status(_, session)
+    await write_ai_model(session, payload.model, user_id)
+    return await ai_status(user_id, session)
 
 
 @api_router.delete("/ai/model", response_model=AIStatusOut)
 async def clear_selected_ai_model(
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> AIStatusOut:
-    await clear_ai_model(session)
-    return await ai_status(_, session)
+    await clear_ai_model(session, user_id)
+    return await ai_status(user_id, session)
 
 
 @api_router.get("/activity", response_model=list[ActivityOut])
 async def activity(
     limit: int = Query(default=50, ge=1, le=200),
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> list[ActivityOut]:
-    rows = await list_activity(session, limit)
+    rows = await list_activity(session, limit, user_id)
     return [
         ActivityOut(
             id=row.id,
@@ -446,7 +562,7 @@ async def activity(
 
 
 @api_router.get("/voice/status", response_model=VoiceStatusOut)
-async def voice_status(_: None = Depends(require_token)) -> VoiceStatusOut:
+async def voice_status(_: str | None = Depends(require_identity)) -> VoiceStatusOut:
     if get_settings().is_vercel_deployment:
         return VoiceStatusOut(
             ready=False,
@@ -473,7 +589,7 @@ async def voice_status(_: None = Depends(require_token)) -> VoiceStatusOut:
 
 
 @api_router.post("/voice/model", response_model=VoiceStatusOut)
-async def install_voice_model(_: None = Depends(require_token)) -> VoiceStatusOut:
+async def install_voice_model(_: str | None = Depends(require_identity)) -> VoiceStatusOut:
     if get_settings().is_vercel_deployment:
         raise HTTPException(status_code=503, detail="Local speech models cannot be installed in the hosted backend.")
     try:
@@ -491,7 +607,7 @@ async def install_voice_model(_: None = Depends(require_token)) -> VoiceStatusOu
 async def transcribe_voice(
     audio: UploadFile = File(...),
     language: str = Form(default="auto"),
-    _: None = Depends(require_token),
+    _: str | None = Depends(require_identity),
 ) -> VoiceTranscriptionOut:
     if get_settings().is_vercel_deployment:
         raise HTTPException(status_code=503, detail="Voice transcription is available only through the local backend.")
@@ -545,29 +661,29 @@ async def transcribe_voice(
 
 @api_router.get("/tasks", response_model=list[TaskOut])
 async def get_tasks(
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> list[TaskOut]:
-    return [TaskOut.model_validate(item) for item in await list_tasks(session)]
+    return [TaskOut.model_validate(item) for item in await list_tasks(session, user_id)]
 
 
 @api_router.post("/tasks", response_model=TaskOut, status_code=201)
 async def post_task(
     payload: TaskCreateIn,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> TaskOut:
-    return TaskOut.model_validate(await create_task(session, payload))
+    return TaskOut.model_validate(await create_task(session, payload, user_id))
 
 
 @api_router.patch("/tasks/{task_id}", response_model=TaskOut)
 async def patch_task(
     task_id: str,
     payload: TaskUpdateIn,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> TaskOut:
-    task = await get_task(session, task_id)
+    task = await get_task(session, task_id, user_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found.")
     return TaskOut.model_validate(await update_task(session, task, payload))
@@ -576,10 +692,10 @@ async def patch_task(
 @api_router.delete("/tasks/{task_id}", status_code=204)
 async def remove_task(
     task_id: str,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> None:
-    task = await get_task(session, task_id)
+    task = await get_task(session, task_id, user_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found.")
     await delete_task(session, task)
@@ -587,20 +703,20 @@ async def remove_task(
 
 @api_router.get("/settings", response_model=SettingsOut)
 async def get_settings_route(
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> SettingsOut:
-    return SettingsOut(**await read_settings(session))
+    return SettingsOut(**await read_settings(session, user_id))
 
 
 @api_router.put("/settings", response_model=SettingsOut)
 async def put_settings_route(
     payload: SettingsIn,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> SettingsOut:
     try:
-        values = await write_display_name(session, payload.user_display_name)
+        values = await write_display_name(session, payload.user_display_name, user_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return SettingsOut(**values)
@@ -608,10 +724,10 @@ async def put_settings_route(
 
 @api_router.get("/conversations", response_model=list[ConversationSummary])
 async def conversations(
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> list[ConversationSummary]:
-    rows = await list_conversations(session)
+    rows = await list_conversations(session, user_id)
     return [
         ConversationSummary(
             id=row.id,
@@ -626,10 +742,10 @@ async def conversations(
 @api_router.get("/conversations/{conversation_id}", response_model=ConversationOut)
 async def conversation_detail(
     conversation_id: str,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> ConversationOut:
-    conversation = await get_conversation(session, conversation_id)
+    conversation = await get_conversation(session, conversation_id, user_id)
     if conversation is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
     messages = sorted(conversation.messages, key=lambda item: item.created_at)
@@ -645,66 +761,125 @@ async def conversation_detail(
 @api_router.delete("/conversations/{conversation_id}", status_code=204)
 async def remove_conversation(
     conversation_id: str,
-    _: None = Depends(require_token),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> None:
-    deleted = await delete_conversation(session, conversation_id)
+    deleted = await delete_conversation(session, conversation_id, user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+
+def _personal_provider_credentials(key: str | None, provider: str | None) -> tuple[str | None, str | None]:
+    cleaned_key = key.strip() if key else ""
+    cleaned_provider = provider.strip().lower() if provider else ""
+    if not cleaned_key:
+        if cleaned_provider:
+            raise HTTPException(status_code=422, detail="Paste an API key to use a personal provider.")
+        return None, None
+    if cleaned_provider not in {"gemini", "openai"}:
+        raise HTTPException(status_code=422, detail="Choose Gemini or OpenAI for your personal API key.")
+    if len(cleaned_key) > 512:
+        raise HTTPException(status_code=422, detail="The personal API key is too long.")
+    return cleaned_key, cleaned_provider
 
 
 @api_router.post("/commands", response_model=CommandOut)
 async def command(
     payload: CommandIn,
-    _: None = Depends(require_token),
+    provider_key: str | None = Header(default=None, alias="X-Astra-Provider-Key"),
+    provider_name: str | None = Header(default=None, alias="X-Astra-Provider"),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> CommandOut:
+    provider_key, provider_name = _personal_provider_credentials(provider_key, provider_name)
+    reserved = bool(user_id and get_settings().is_vercel_deployment and not provider_key)
+    if reserved and not await reserve_shared_message(session, user_id):
+        raise HTTPException(
+            status_code=429,
+            detail="Your 20 shared-key AI messages for today are used. Add your own Gemini or OpenAI key to continue.",
+        )
     try:
         conversation, user_message, assistant_message = await handle_command(
             session,
             payload.text,
             payload.conversation_id,
             payload.response_language,
+            user_id,
+            provider_key,
+            provider_name,
         )
     except ValueError as exc:
+        if reserved:
+            await release_shared_message(session, user_id)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except LookupError as exc:
+        if reserved:
+            await release_shared_message(session, user_id)
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AIProviderError as exc:
+        if reserved:
+            await release_shared_message(session, user_id)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception:
+        if reserved:
+            await release_shared_message(session, user_id)
+        raise
     return CommandOut(
         conversation_id=conversation.id,
         user_message=_message(user_message),
         assistant_message=_message(assistant_message),
         state="completed",
-        model=get_language_model(await read_ai_model(session)).name,
+        model=(
+            f"{provider_name}:personal-key"
+            if provider_key and provider_name
+            else get_language_model(await read_ai_model(session, user_id)).name
+        ),
     )
 
 
 @api_router.post("/commands/stream")
 async def stream_command(
     payload: CommandIn,
-    _: None = Depends(require_token),
+    provider_key: str | None = Header(default=None, alias="X-Astra-Provider-Key"),
+    provider_name: str | None = Header(default=None, alias="X-Astra-Provider"),
+    user_id: str | None = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
+    provider_key, provider_name = _personal_provider_credentials(provider_key, provider_name)
+    reserved = bool(user_id and get_settings().is_vercel_deployment and not provider_key)
+    if reserved and not await reserve_shared_message(session, user_id):
+        raise HTTPException(
+            status_code=429,
+            detail="Your 20 shared-key AI messages for today are used. Add your own Gemini or OpenAI key to continue.",
+        )
     try:
         conversation, user_message, model, history = await prepare_stream_command(
             session,
             payload.text,
             payload.conversation_id,
             payload.response_language,
+            user_id,
+            provider_key,
+            provider_name,
         )
     except ValueError as exc:
+        if reserved:
+            await release_shared_message(session, user_id)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except LookupError as exc:
+        if reserved:
+            await release_shared_message(session, user_id)
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AIProviderError as exc:
+        if reserved:
+            await release_shared_message(session, user_id)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     def event(data: dict[str, object]) -> str:
         return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
     async def generate():
+        completed = False
         yield event(
             {
                 "type": "meta",
@@ -733,12 +908,16 @@ async def stream_command(
                 "".join(chunks),
                 provider_name,
             )
+            completed = True
             yield event({"type": "done", "assistant_message": _message(assistant_message).model_dump(mode="json")})
         except AIProviderError as exc:
             yield event({"type": "error", "message": str(exc)})
         except Exception:
-            logger.exception("Unexpected error while streaming a local AI response")
-            yield event({"type": "error", "message": "ASTRA could not complete the local AI response. Check the backend log."})
+            logger.exception("Unexpected error while streaming an AI response")
+            yield event({"type": "error", "message": "ASTRA could not complete the AI response. Check the backend log."})
+        finally:
+            if reserved and not completed:
+                await release_shared_message(session, user_id)
 
     return StreamingResponse(
         generate(),

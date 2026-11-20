@@ -156,8 +156,8 @@ class GeminiProvider(LanguageModel):
         "tts",
     )
 
-    def __init__(self, model: str | None = None) -> None:
-        self.api_key = get_settings().gemini_api_key.strip()
+    def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
+        self.api_key = (api_key if api_key is not None else get_settings().gemini_api_key).strip()
         self.model = model.strip() if model else ""
         self.name = f"gemini:{self.model}" if self.model else "gemini (no model selected)"
 
@@ -308,8 +308,8 @@ class OpenAIProvider(LanguageModel):
         "whisper",
     )
 
-    def __init__(self, model: str | None = None) -> None:
-        self.api_key = get_settings().openai_api_key.strip()
+    def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
+        self.api_key = (api_key if api_key is not None else get_settings().openai_api_key).strip()
         self.model = model.strip() if model else ""
         self.name = f"openai:{self.model}" if self.model else "openai (no model selected)"
 
@@ -439,11 +439,11 @@ class OpenAIProvider(LanguageModel):
             raise AIProviderError("The OpenAI connection failed while generating a reply.") from exc
 
 
-def get_language_model(model: str | None = None) -> LanguageModel:
+def get_language_model(model: str | None = None, api_key: str | None = None) -> LanguageModel:
     if model and model.startswith("gemini:"):
-        return GeminiProvider(model.removeprefix("gemini:"))
+        return GeminiProvider(model.removeprefix("gemini:"), api_key)
     if model and model.startswith("openai:"):
-        return OpenAIProvider(model.removeprefix("openai:"))
+        return OpenAIProvider(model.removeprefix("openai:"), api_key)
     if _is_vercel_deployment():
         raise AIProviderError("Select a configured Gemini or OpenAI cloud model in Settings before chatting.")
     return OllamaProvider(model)

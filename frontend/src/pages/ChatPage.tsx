@@ -104,7 +104,14 @@ export function ChatPage() {
           <CommandBar disabled={busy} onSubmit={sendCommand} />
         </div>
         {commandError ? (
-          <p className="mt-2 text-sm text-astra-danger" role="alert">{commandError}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-astra-danger" role="alert">
+            <span>{commandError}</span>
+            {commandError.includes("20 shared-key AI messages") ? (
+              <NavLink to="/settings" className="text-astra-cyan underline">
+                Add your own provider key
+              </NavLink>
+            ) : null}
+          </div>
         ) : null}
       </section>
     </div>

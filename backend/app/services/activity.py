@@ -18,9 +18,11 @@ async def record_activity(
     message: str,
     details: str | None = None,
     session: AsyncSession | None = None,
+    owner_id: str | None = None,
 ) -> ActivityLog:
     entry = ActivityLog(
         id=str(uuid4()),
+        owner_id=owner_id,
         created_at=utcnow(),
         level=level,
         source=source,
@@ -40,9 +42,12 @@ async def record_activity(
         return _item(entry)
 
 
-async def list_activity(session: AsyncSession, limit: int) -> list[ActivityLog]:
+async def list_activity(
+    session: AsyncSession,
+    limit: int,
+    owner_id: str | None = None,
+) -> list[ActivityLog]:
     bounded = min(max(limit, 1), 200)
-    result = await session.scalars(
-        select(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(bounded)
-    )
+    statement = select(ActivityLog).where(ActivityLog.owner_id == owner_id)
+    result = await session.scalars(statement.order_by(ActivityLog.created_at.desc()).limit(bounded))
     return list(result)

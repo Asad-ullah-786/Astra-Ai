@@ -26,7 +26,12 @@ import { CommandBar } from "../components/CommandBar.tsx";
 import { Waveform } from "../components/Waveform.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
 import { useClock } from "../hooks/useClock.ts";
-import { apiGet, getApiToken } from "../services/api.ts";
+import {
+  apiGet,
+  authenticateAccount,
+  clearPersonalProviderCredentials,
+  getApiToken,
+} from "../services/api.ts";
 import type { AssistantState, CommandSendOptions } from "../types/index.ts";
 
 const NAV = [
@@ -97,6 +102,9 @@ export function AppShell() {
   const [apiToken, setApiToken] = useState(() => getApiToken());
   const [tokenSubmitting, setTokenSubmitting] = useState(false);
   const [tokenError, setTokenError] = useState("");
+  const [accountMode, setAccountMode] = useState<"login" | "register">("login");
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
   const [appMenuOpen, setAppMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const appMenuRef = useRef<HTMLDivElement>(null);
@@ -107,7 +115,8 @@ export function AppShell() {
   const pendingTaskCount = tasks.filter((task) => !task.completed).length;
   const tokenRequired = Boolean(
     health?.auth_required &&
-    connectionError?.startsWith("This backend requires an API token."),
+    (connectionError?.startsWith("Sign in to your ASTRA account") ||
+      connectionError?.startsWith("This backend requires an API token.")),
   );
 
   useEffect(() => {
@@ -176,6 +185,23 @@ export function AppShell() {
           ? error.message
           : "The token could not be verified. Check it and try again.",
       );
+    } finally {
+      setTokenSubmitting(false);
+    }
+  }
+
+  async function submitAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setTokenSubmitting(true);
+    setTokenError("");
+    try {
+      const session = await authenticateAccount(accountEmail, accountPassword, accountMode);
+      setAccountPassword("");
+      saveApiToken(session.access_token);
+      await apiGet("/api/v1/settings");
+      await refresh();
+    } catch (error) {
+      setTokenError(error instanceof Error ? error.message : "Could not connect to your ASTRA account.");
     } finally {
       setTokenSubmitting(false);
     }
@@ -327,7 +353,7 @@ export function AppShell() {
               </button>
               {profileMenuOpen ? (
                 <div className="astra-header-dropdown astra-profile-dropdown">
-                  <span className="astra-profile-caption">LOCAL ASTRA PROFILE</span>
+                  <span className="astra-profile-caption">{health?.cloud_deployment ? "ASTRA ACCOUNT" : "LOCAL ASTRA PROFILE"}</span>
                   <strong>{displayName}</strong>
                   <NavLink to="/settings" className="astra-menu-link" onClick={() => setProfileMenuOpen(false)}>
                     <Settings className="size-4" />
@@ -337,6 +363,20 @@ export function AppShell() {
                     <Bell className="size-4" />
                     <span>Activity history</span>
                   </NavLink>
+                  {health?.cloud_deployment ? (
+                    <button
+                      type="button"
+                      className="astra-menu-link"
+                      onClick={() => {
+                        clearPersonalProviderCredentials();
+                        saveApiToken("");
+                        setProfileMenuOpen(false);
+                      }}
+                    >
+                      <ShieldCheck className="size-4" />
+                      <span>Sign out</span>
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -346,29 +386,79 @@ export function AppShell() {
         {tokenRequired ? (
           <section className="astra-connection-error flex flex-wrap items-center gap-3" aria-label="Backend authentication">
             <p className="m-0 flex-1" role="status">
-              Backend is online. Enter its API token to unlock your private data and AI features.
+              {health?.cloud_deployment
+                ? "ASTRA cloud is online. Sign in or create an account to access your private workspace."
+                : "Backend is online. Enter its API token to unlock your private data and AI features."}
             </p>
-            <form className="flex min-w-0 flex-1 flex-wrap gap-2 sm:flex-nowrap" onSubmit={(event) => void applyApiToken(event)}>
-              <label className="sr-only" htmlFor="connection-api-token">ASTRA API token</label>
-              <input
-                id="connection-api-token"
-                type="password"
-                autoComplete="off"
-                value={apiToken}
-                onChange={(event) => setApiToken(event.target.value)}
-                placeholder="Paste ASTRA_API_TOKEN"
-                className="min-w-0 flex-1 rounded-lg border border-astra-cyan/30 bg-black/50 px-3 py-1.5 text-sm text-astra-text outline-none focus:border-astra-cyan"
-              />
-              <button
-                type="submit"
-                disabled={tokenSubmitting}
-                className="rounded-lg border border-astra-cyan/40 px-3 py-1.5 text-xs text-astra-cyan disabled:opacity-50"
-              >
-                {tokenSubmitting ? "CHECKING..." : "CONNECT"}
-              </button>
-            </form>
+            {health?.cloud_deployment ? (
+              <form className="flex min-w-0 flex-1 flex-wrap gap-2" onSubmit={(event) => void submitAccount(event)}>
+                <label className="sr-only" htmlFor="account-email">Email</label>
+                <input
+                  id="account-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={accountEmail}
+                  onChange={(event) => setAccountEmail(event.target.value)}
+                  placeholder="Email"
+                  className="min-w-0 flex-1 rounded-lg border border-astra-cyan/30 bg-black/50 px-3 py-1.5 text-sm text-astra-text outline-none focus:border-astra-cyan"
+                />
+                <label className="sr-only" htmlFor="account-password">Password</label>
+                <input
+                  id="account-password"
+                  type="password"
+                  autoComplete={accountMode === "register" ? "new-password" : "current-password"}
+                  minLength={12}
+                  maxLength={128}
+                  required
+                  value={accountPassword}
+                  onChange={(event) => setAccountPassword(event.target.value)}
+                  placeholder="Password (12+ characters)"
+                  className="min-w-0 flex-1 rounded-lg border border-astra-cyan/30 bg-black/50 px-3 py-1.5 text-sm text-astra-text outline-none focus:border-astra-cyan"
+                />
+                <button
+                  type="submit"
+                  disabled={tokenSubmitting}
+                  className="rounded-lg border border-astra-cyan/40 px-3 py-1.5 text-xs text-astra-cyan disabled:opacity-50"
+                >
+                  {tokenSubmitting ? "CONNECTING..." : accountMode === "register" ? "CREATE ACCOUNT" : "SIGN IN"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAccountMode((mode) => mode === "login" ? "register" : "login")}
+                  className="rounded-lg px-2 py-1.5 text-xs text-astra-muted underline"
+                >
+                  {accountMode === "login" ? "Create account" : "I already have an account"}
+                </button>
+                <p className="m-0 w-full text-xs text-astra-muted">
+                  Email verification and password recovery are not available yet. Use an email/password combination you can retain.
+                </p>
+              </form>
+            ) : (
+              <form className="flex min-w-0 flex-1 flex-wrap gap-2 sm:flex-nowrap" onSubmit={(event) => void applyApiToken(event)}>
+                <label className="sr-only" htmlFor="connection-api-token">ASTRA API token</label>
+                <input
+                  id="connection-api-token"
+                  type="password"
+                  autoComplete="off"
+                  value={apiToken}
+                  onChange={(event) => setApiToken(event.target.value)}
+                  placeholder="Paste ASTRA_API_TOKEN"
+                  className="min-w-0 flex-1 rounded-lg border border-astra-cyan/30 bg-black/50 px-3 py-1.5 text-sm text-astra-text outline-none focus:border-astra-cyan"
+                />
+                <button
+                  type="submit"
+                  disabled={tokenSubmitting}
+                  className="rounded-lg border border-astra-cyan/40 px-3 py-1.5 text-xs text-astra-cyan disabled:opacity-50"
+                >
+                  {tokenSubmitting ? "CHECKING..." : "CONNECT"}
+                </button>
+              </form>
+            )}
             {tokenError ? <p className="m-0 w-full" role="alert">{tokenError}</p> : null}
-            <NavLink to="/settings" className="text-xs text-astra-cyan underline">Token settings</NavLink>
+            {!health?.cloud_deployment ? (
+              <NavLink to="/settings" className="text-xs text-astra-cyan underline">Token settings</NavLink>
+            ) : null}
           </section>
         ) : connectionError ? (
           <p className="astra-connection-error" role="alert">{connectionError}</p>

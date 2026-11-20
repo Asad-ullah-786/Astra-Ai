@@ -48,6 +48,124 @@ def test_token_comparison_rejects_partial_matches():
     assert token_matches("", "Bearer secret") is False
 
 
+def test_cloud_accounts_keep_private_data_and_enforce_shared_quota(client, monkeypatch):
+    from app.config import get_settings
+
+    class FakeModel:
+        name = "gemini:test"
+        model = "test"
+
+        async def complete(self, _history):
+            return "A focused test reply."
+
+    def fake_model(_model=None, api_key=None):
+        used_keys.append(api_key)
+        return FakeModel()
+
+    used_keys: list[str | None] = []
+    try:
+        with monkeypatch.context() as patch:
+            patch.setenv("VERCEL", "1")
+            patch.setenv("ASTRA_API_TOKEN", "test-token-with-more-than-thirty-two-characters")
+            get_settings.cache_clear()
+            monkeypatch.setattr("app.services.chat.get_language_model", fake_model)
+            monkeypatch.setattr("app.api.router.get_language_model", fake_model)
+
+            assert client.get(
+                "/api/v1/tasks",
+                headers={"host": "astra-ai.vercel.app"},
+            ).status_code == 401
+            first = client.post(
+                "/api/v1/auth/register",
+                json={"email": "first@example.com", "password": "correct horse battery"},
+                headers={"host": "astra-ai.vercel.app"},
+            )
+            second = client.post(
+                "/api/v1/auth/register",
+                json={"email": "second@example.com", "password": "correct battery horse"},
+                headers={"host": "astra-ai.vercel.app"},
+            )
+            assert first.status_code == second.status_code == 201
+            first_headers = {"Authorization": f"Bearer {first.json()['access_token']}", "host": "astra-ai.vercel.app"}
+            second_headers = {"Authorization": f"Bearer {second.json()['access_token']}", "host": "astra-ai.vercel.app"}
+            assert client.get(
+                "/api/v1/tasks",
+                headers={"Authorization": "Bearer forged.token", "host": "astra-ai.vercel.app"},
+            ).status_code == 401
+
+            task = client.post("/api/v1/tasks", json={"title": "Private task"}, headers=first_headers)
+            memory = client.post(
+                "/api/v1/memory",
+                json={"title": "Private note", "content": "Only for the first account"},
+                headers=first_headers,
+            )
+            first_settings = client.put(
+                "/api/v1/settings",
+                json={"user_display_name": "First Account"},
+                headers=first_headers,
+            )
+            conversation = client.post(
+                "/api/v1/commands",
+                json={"text": "Remember this private conversation"},
+                headers=first_headers,
+            )
+            assert task.status_code == 201
+            assert memory.status_code == 201
+            assert first_settings.status_code == 200
+            assert client.get("/api/v1/settings", headers=second_headers).json()["user_display_name"] == "Operator"
+            assert conversation.status_code == 200
+
+            assert client.get("/api/v1/tasks", headers=second_headers).json() == []
+            assert client.get("/api/v1/memory", headers=second_headers).json() == []
+            assert client.get("/api/v1/conversations", headers=second_headers).json() == []
+            assert client.get("/api/v1/activity", headers=second_headers).json() == []
+            assert client.get(
+                f"/api/v1/conversations/{conversation.json()['conversation_id']}",
+                headers=second_headers,
+            ).status_code == 404
+            assert client.patch(
+                f"/api/v1/tasks/{task.json()['id']}",
+                json={"title": "Changed by another account"},
+                headers=second_headers,
+            ).status_code == 404
+            assert client.patch(
+                f"/api/v1/memory/{memory.json()['id']}",
+                json={"content": "Changed by another account"},
+                headers=second_headers,
+            ).status_code == 404
+
+            for index in range(19):
+                reply = client.post(
+                    "/api/v1/commands",
+                    json={"text": f"Shared-key message {index}"},
+                    headers=first_headers,
+                )
+                assert reply.status_code == 200
+            usage = client.get("/api/v1/account/usage", headers=first_headers)
+            assert usage.json() == {"used_today": 20, "daily_limit": 20, "remaining": 0}
+            exhausted = client.post(
+                "/api/v1/commands",
+                json={"text": "The next shared-key message"},
+                headers=first_headers,
+            )
+            assert exhausted.status_code == 429
+
+            personal_key_reply = client.post(
+                "/api/v1/commands",
+                json={"text": "Use my own provider key"},
+                headers={
+                    **first_headers,
+                    "X-Astra-Provider-Key": "personal-test-key",
+                    "X-Astra-Provider": "gemini",
+                },
+            )
+            assert personal_key_reply.status_code == 200
+            assert used_keys[-1] == "personal-test-key"
+            assert client.get("/api/v1/account/usage", headers=first_headers).json()["used_today"] == 20
+    finally:
+        get_settings.cache_clear()
+
+
 def test_vercel_mode_requires_token_and_accepts_public_host(client, monkeypatch):
     monkeypatch.setenv("VERCEL", "1")
 

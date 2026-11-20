@@ -1,15 +1,41 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, utcnow
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AIMessageUsage(Base):
+    __tablename__ = "ai_message_usage"
+
+    user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    usage_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AuthAttempt(Base):
+    __tablename__ = "auth_attempts"
+
+    identity_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    window_started: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class Conversation(Base):
     __tablename__ = "conversations"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     title: Mapped[str] = mapped_column(String(120))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -25,6 +51,7 @@ class ChatMessage(Base):
     __table_args__ = (Index("ix_messages_conversation_created", "conversation_id", "created_at"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     conversation_id: Mapped[str] = mapped_column(
         ForeignKey("conversations.id", ondelete="CASCADE"),
         index=True,
@@ -41,6 +68,7 @@ class ActivityLog(Base):
     __table_args__ = (Index("ix_activity_created", "created_at"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     level: Mapped[str] = mapped_column(String(16))
     source: Mapped[str] = mapped_column(String(64))
@@ -61,6 +89,7 @@ class TaskItem(Base):
     __table_args__ = (Index("ix_tasks_completed_due", "completed", "due_at"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     title: Mapped[str] = mapped_column(String(160))
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -76,6 +105,7 @@ class PersonalMemory(Base):
     __table_args__ = (Index("ix_memories_created", "created_at"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     title: Mapped[str] = mapped_column(String(120))
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

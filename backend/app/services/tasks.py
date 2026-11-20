@@ -10,9 +10,10 @@ from app.services.activity import record_activity
 from app.services.task_reminders import issue_due_task_reminders
 
 
-async def list_tasks(session: AsyncSession) -> list[TaskItem]:
+async def list_tasks(session: AsyncSession, owner_id: str | None = None) -> list[TaskItem]:
+    statement = select(TaskItem).where(TaskItem.owner_id == owner_id)
     result = await session.scalars(
-        select(TaskItem).order_by(
+        statement.order_by(
             TaskItem.completed.asc(),
             TaskItem.due_at.is_(None),
             TaskItem.due_at.asc(),
@@ -22,13 +23,23 @@ async def list_tasks(session: AsyncSession) -> list[TaskItem]:
     return list(result)
 
 
-async def get_task(session: AsyncSession, task_id: str) -> TaskItem | None:
-    return await session.get(TaskItem, task_id)
+async def get_task(
+    session: AsyncSession,
+    task_id: str,
+    owner_id: str | None = None,
+) -> TaskItem | None:
+    task = await session.get(TaskItem, task_id)
+    return task if task is not None and task.owner_id == owner_id else None
 
 
-async def create_task(session: AsyncSession, payload: TaskCreateIn) -> TaskItem:
+async def create_task(
+    session: AsyncSession,
+    payload: TaskCreateIn,
+    owner_id: str | None = None,
+) -> TaskItem:
     task = TaskItem(
         id=str(uuid4()),
+        owner_id=owner_id,
         title=payload.title,
         notes=payload.notes,
         due_at=payload.due_at,
@@ -41,6 +52,7 @@ async def create_task(session: AsyncSession, payload: TaskCreateIn) -> TaskItem:
         "productivity",
         f"Task created: {task.title}",
         session=session,
+        owner_id=owner_id,
     )
     await session.commit()
     await issue_due_task_reminders(session)
@@ -67,6 +79,7 @@ async def update_task(session: AsyncSession, task: TaskItem, payload: TaskUpdate
         "productivity",
         f"Task updated: {task.title}",
         session=session,
+        owner_id=task.owner_id,
     )
     await session.commit()
     await issue_due_task_reminders(session)
@@ -80,6 +93,7 @@ async def delete_task(session: AsyncSession, task: TaskItem) -> None:
         "productivity",
         f"Task deleted: {task.title}",
         session=session,
+        owner_id=task.owner_id,
     )
     await session.delete(task)
     await session.commit()

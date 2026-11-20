@@ -15,7 +15,6 @@ from app.ai.provider import (
 from app.database.base import utcnow
 from app.database.models import ChatMessage, Conversation
 from app.services.activity import record_activity
-from app.database.models import Setting
 from app.services.memory import memory_context
 
 
@@ -47,22 +46,34 @@ def _language_instruction(response_language: str | None) -> str:
     )
 
 
-async def list_conversations(session: AsyncSession) -> list[Conversation]:
-    result = await session.scalars(select(Conversation).order_by(Conversation.updated_at.desc()))
+async def list_conversations(
+    session: AsyncSession,
+    owner_id: str | None = None,
+) -> list[Conversation]:
+    statement = select(Conversation).where(Conversation.owner_id == owner_id)
+    result = await session.scalars(statement.order_by(Conversation.updated_at.desc()))
     return list(result)
 
 
-async def get_conversation(session: AsyncSession, conversation_id: str) -> Conversation | None:
-    result = await session.scalars(
-        select(Conversation)
-        .where(Conversation.id == conversation_id)
-        .options(selectinload(Conversation.messages))
+async def get_conversation(
+    session: AsyncSession,
+    conversation_id: str,
+    owner_id: str | None = None,
+) -> Conversation | None:
+    statement = select(Conversation).where(
+        Conversation.id == conversation_id,
+        Conversation.owner_id == owner_id,
     )
+    result = await session.scalars(statement.options(selectinload(Conversation.messages)))
     return result.first()
 
 
-async def delete_conversation(session: AsyncSession, conversation_id: str) -> bool:
-    conversation = await session.get(Conversation, conversation_id)
+async def delete_conversation(
+    session: AsyncSession,
+    conversation_id: str,
+    owner_id: str | None = None,
+) -> bool:
+    conversation = await get_conversation(session, conversation_id, owner_id)
     if conversation is None:
         return False
     await session.execute(delete(ChatMessage).where(ChatMessage.conversation_id == conversation_id))
@@ -73,6 +84,7 @@ async def delete_conversation(session: AsyncSession, conversation_id: str) -> bo
         "Deleted a conversation",
         details=conversation_id,
         session=session,
+        owner_id=conversation.owner_id,
     )
     await session.commit()
     return True
@@ -83,6 +95,9 @@ async def handle_command(
     text: str,
     conversation_id: str | None,
     response_language: str | None = None,
+    owner_id: str | None = None,
+    provider_key: str | None = None,
+    provider_name: str | None = None,
 ) -> tuple[Conversation, ChatMessage, ChatMessage]:
     cleaned = " ".join(text.split())
     if not cleaned:
@@ -92,13 +107,14 @@ async def handle_command(
 
     existing_messages: list[ChatMessage] = []
     if conversation_id:
-        conversation = await get_conversation(session, conversation_id)
+        conversation = await get_conversation(session, conversation_id, owner_id)
         if conversation is None:
             raise LookupError("Conversation not found")
         existing_messages = list(conversation.messages)
     else:
         conversation = Conversation(
             id=str(uuid4()),
+            owner_id=owner_id,
             title=_title_from(cleaned),
             created_at=utcnow(),
             updated_at=utcnow(),
@@ -110,23 +126,27 @@ async def handle_command(
         {"role": message.role, "content": message.content}
         for message in sorted(existing_messages, key=lambda item: item.created_at)
     ]
-    saved_memory = await memory_context(session)
+    saved_memory = await memory_context(session, owner_id)
     if saved_memory:
         history.insert(0, {"role": "system", "content": saved_memory})
     history.append({"role": "system", "content": _language_instruction(response_language)})
     user_message = ChatMessage(
         id=str(uuid4()),
+        owner_id=owner_id,
         conversation_id=conversation.id,
         role="user",
         content=cleaned,
         created_at=utcnow(),
     )
     history.append({"role": "user", "content": cleaned})
-    selected = await session.get(Setting, "ai_model")
-    model = get_language_model(selected.value if selected else None)
+    from app.services.settings import read_ai_model
+
+    selected_model = await read_ai_model(session, owner_id)
+    model = _command_model(selected_model, provider_key, provider_name)
     reply = await model.complete(history)
     assistant_message = ChatMessage(
         id=str(uuid4()),
+        owner_id=owner_id,
         conversation_id=conversation.id,
         role="assistant",
         content=reply,
@@ -140,6 +160,7 @@ async def handle_command(
         "Saved a text command",
         details=conversation.id,
         session=session,
+        owner_id=owner_id,
     )
     await session.commit()
     await session.refresh(conversation)
@@ -153,6 +174,9 @@ async def prepare_stream_command(
     text: str,
     conversation_id: str | None,
     response_language: str | None = None,
+    owner_id: str | None = None,
+    provider_key: str | None = None,
+    provider_name: str | None = None,
 ) -> tuple[Conversation, ChatMessage, LanguageModel, list[dict[str, str]]]:
     cleaned = " ".join(text.split())
     if not cleaned:
@@ -160,8 +184,9 @@ async def prepare_stream_command(
     if len(cleaned) > 4000:
         raise ValueError("Command text exceeds 4000 characters")
 
-    selected = await session.get(Setting, "ai_model")
-    model = get_language_model(selected.value if selected else None)
+    from app.services.settings import read_ai_model
+
+    model = _command_model(await read_ai_model(session, owner_id), provider_key, provider_name)
     installed = await model.list_models()
     if not any(item.name == model.model for item in installed):
         if isinstance(model, OllamaProvider):
@@ -174,13 +199,14 @@ async def prepare_stream_command(
 
     existing_messages: list[ChatMessage] = []
     if conversation_id:
-        conversation = await get_conversation(session, conversation_id)
+        conversation = await get_conversation(session, conversation_id, owner_id)
         if conversation is None:
             raise LookupError("Conversation not found")
         existing_messages = list(conversation.messages)
     else:
         conversation = Conversation(
             id=str(uuid4()),
+            owner_id=owner_id,
             title=_title_from(cleaned),
             created_at=utcnow(),
             updated_at=utcnow(),
@@ -192,12 +218,13 @@ async def prepare_stream_command(
         {"role": item.role, "content": item.content}
         for item in sorted(existing_messages, key=lambda message: message.created_at)
     ]
-    saved_memory = await memory_context(session)
+    saved_memory = await memory_context(session, owner_id)
     if saved_memory:
         history.insert(0, {"role": "system", "content": saved_memory})
     history.append({"role": "system", "content": _language_instruction(response_language)})
     user_message = ChatMessage(
         id=str(uuid4()),
+        owner_id=owner_id,
         conversation_id=conversation.id,
         role="user",
         content=cleaned,
@@ -219,11 +246,31 @@ async def prepare_stream_command(
         f"Started {article} {provider_name} response",
         details=conversation.id,
         session=session,
+        owner_id=owner_id,
     )
     await session.commit()
     await session.refresh(conversation)
     await session.refresh(user_message)
     return conversation, user_message, model, history
+
+
+def _command_model(
+    selected_model: str | None,
+    provider_key: str | None,
+    provider_name: str | None,
+) -> LanguageModel:
+    if not provider_key:
+        return get_language_model(selected_model)
+    if provider_name not in {"gemini", "openai"}:
+        raise ValueError("Choose Gemini or OpenAI for your personal API key.")
+    if len(provider_key) > 512:
+        raise ValueError("The personal API key is too long.")
+
+    if selected_model and selected_model.startswith(f"{provider_name}:"):
+        model_name = selected_model.removeprefix(f"{provider_name}:")
+    else:
+        model_name = "gemini-2.5-flash" if provider_name == "gemini" else "gpt-4o-mini"
+    return get_language_model(f"{provider_name}:{model_name}", provider_key)
 
 
 async def save_streamed_reply(
@@ -234,6 +281,7 @@ async def save_streamed_reply(
 ) -> ChatMessage:
     assistant_message = ChatMessage(
         id=str(uuid4()),
+        owner_id=conversation.owner_id,
         conversation_id=conversation.id,
         role="assistant",
         content=content,
@@ -248,6 +296,7 @@ async def save_streamed_reply(
         f"Completed {article} {provider_name} response",
         details=conversation.id,
         session=session,
+        owner_id=conversation.owner_id,
     )
     await session.commit()
     await session.refresh(assistant_message)

@@ -7,6 +7,12 @@ import { Panel } from "../components/Panel.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
 import { createSpeechQueue } from "../lib/speech.ts";
 import { watchForSpeechPause } from "../lib/voiceSilence.ts";
+import {
+  getBrowserSpeechRecognition,
+  recognitionLanguage,
+  responseLanguageCode,
+  type BrowserSpeechRecognition,
+} from "../lib/browserSpeech.ts";
 import type { VoiceStatus } from "../types/index.ts";
 
 type TranscriptionLanguage = "auto" | "en" | "ur";
@@ -31,6 +37,9 @@ export function VoicePage() {
   const chunksRef = useRef<Blob[]>([]);
   const recordingTimeoutRef = useRef<number | null>(null);
   const silenceCleanupRef = useRef<(() => void) | null>(null);
+  const browserRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const recognizedTextRef = useRef("");
+  const recognitionFailedRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -46,6 +55,12 @@ export function VoicePage() {
       if (recordingTimeoutRef.current !== null) window.clearTimeout(recordingTimeoutRef.current);
       silenceCleanupRef.current?.();
       if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+      if (browserRecognitionRef.current) {
+        browserRecognitionRef.current.onresult = null;
+        browserRecognitionRef.current.onerror = null;
+        browserRecognitionRef.current.onend = null;
+        browserRecognitionRef.current.stop();
+      }
       streamRef.current?.getTracks().forEach((track) => track.stop());
       window.speechSynthesis?.cancel();
     };
@@ -96,10 +111,102 @@ export function VoicePage() {
     }
   }
 
+  async function sendRecognizedText(text: string, responseLanguage: string) {
+    setWorking(true);
+    setError("");
+    setReplyText("");
+    setTranscript(text);
+    const speechQueue = speakReplies ? createSpeechQueue(responseLanguage) : null;
+    try {
+      const reply = await sendCommand(text, {
+        responseLanguage,
+        onToken: (chunk) => {
+          setReplyText((current) => current + chunk);
+          speechQueue?.append(chunk);
+        },
+      });
+      if (reply) {
+        setReplyText(reply.content);
+        speechQueue?.finish();
+        if (speakReplies && !speechQueue) {
+          setError("Speech playback is not supported by this browser. ASTRA's text reply is shown below.");
+        }
+      } else {
+        speechQueue?.cancel();
+      }
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  function startBrowserRecognition() {
+    const Recognition = getBrowserSpeechRecognition();
+    if (!Recognition) {
+      setError("This browser does not support speech recognition. Use the Chat page to type your message.");
+      return;
+    }
+    try {
+      const recognition = new Recognition();
+      recognizedTextRef.current = "";
+      recognitionFailedRef.current = false;
+      recognition.lang = recognitionLanguage(language, navigator.language);
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+      recognition.onresult = (event) => {
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+          const result = event.results[index];
+          if (result?.isFinal && result[0]?.transcript) {
+            recognizedTextRef.current += `${result[0].transcript} `;
+          }
+        }
+        const text = recognizedTextRef.current.trim();
+        if (text) setTranscript(text);
+      };
+      recognition.onerror = (event) => {
+        recognitionFailedRef.current = true;
+        const message = event.error === "not-allowed" || event.error === "service-not-allowed"
+          ? "Microphone or speech recognition permission was denied. Allow it in your browser and try again."
+          : event.error === "network"
+            ? "The browser speech service could not connect. Check your internet connection and try again."
+            : event.error === "language-not-supported"
+              ? "This browser does not support the selected speech language. Try another language or use Chat."
+            : event.error === "no-speech"
+              ? "No speech was detected. Try again and speak after starting."
+              : "Browser speech recognition failed. Use the Chat page to type your message.";
+        setError(message);
+      };
+      recognition.onend = () => {
+        browserRecognitionRef.current = null;
+        setRecording(false);
+        if (recordingTimeoutRef.current !== null) window.clearTimeout(recordingTimeoutRef.current);
+        const text = recognizedTextRef.current.trim();
+        if (recognitionFailedRef.current) return;
+        if (!text) {
+          setError("No speech was recognized. Try again or type your message in Chat.");
+          return;
+        }
+        void sendRecognizedText(text, responseLanguageCode(language, recognition.lang))
+          .catch((caught: unknown) => setError(describeError(caught)));
+      };
+      browserRecognitionRef.current = recognition;
+      recognition.start();
+      setRecording(true);
+      recordingTimeoutRef.current = window.setTimeout(() => recognition.stop(), 60_000);
+    } catch (caught) {
+      browserRecognitionRef.current = null;
+      setRecording(false);
+      setError(describeError(caught));
+    }
+  }
+
   async function startRecording() {
     setError("");
     setTranscript("");
     window.speechSynthesis?.cancel();
+    if (health?.cloud_deployment) {
+      startBrowserRecognition();
+      return;
+    }
     if (!navigator.mediaDevices?.getUserMedia || !("MediaRecorder" in window)) {
       setError("This browser does not support microphone recording. Use a current version of Edge or Chrome.");
       return;
@@ -154,10 +261,17 @@ export function VoicePage() {
 
   function stopRecording() {
     if (recordingTimeoutRef.current !== null) window.clearTimeout(recordingTimeoutRef.current);
+    if (browserRecognitionRef.current) {
+      browserRecognitionRef.current.stop();
+      return;
+    }
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
   }
 
   const browserCanSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
+  const browserSpeechAvailable = Boolean(getBrowserSpeechRecognition());
+  const cloudDeployment = Boolean(health?.cloud_deployment);
+  const voiceReady = cloudDeployment ? browserSpeechAvailable : Boolean(voiceStatus?.ready);
   const coreState = recording ? "listening" : working && state === "idle" ? "processing" : state;
   const voiceStatusText = recording
     ? "LISTENING · SPEAK NOW"
@@ -176,7 +290,7 @@ export function VoicePage() {
         <div className="voice-core-stars" aria-hidden="true" />
         <div className="voice-core-copy">
           <span className="voice-core-eyebrow">
-            {health?.cloud_deployment ? "ASTRA VOICE LINK · LOCAL BACKEND REQUIRED" : "ASTRA VOICE LINK · LOCAL & PRIVATE"}
+            {cloudDeployment ? "ASTRA VOICE LINK · BROWSER SPEECH" : "ASTRA VOICE LINK · LOCAL & PRIVATE"}
           </span>
           <AstraCore state={coreState} />
           <span className="voice-core-state" role="status">{voiceStatusText}</span>
@@ -184,26 +298,26 @@ export function VoicePage() {
       </section>
       <Panel title="PUSH-TO-TALK">
         <div className="flex flex-col gap-4">
-          {!voiceStatus?.ready ? (
+          {!voiceReady ? (
             <div className="rounded-xl border border-astra-cyan/20 bg-slate-950/45 p-4">
               <p className="text-sm text-white">
-                {health?.cloud_deployment
-                  ? voiceStatus?.message ?? "Voice transcription requires the local backend."
+                {cloudDeployment
+                  ? "Browser speech recognition is not available in this browser."
                   : voiceStatus?.dependencies_installed
                     ? "Download the small multilingual speech model to enable offline transcription."
                     : "Install the local speech dependencies before downloading the offline model."}
               </p>
               <p className="mt-1 text-xs text-astra-muted">
-                {health?.cloud_deployment
-                  ? "Run ASTRA's local backend on your Windows computer to use private voice transcription."
+                {cloudDeployment
+                  ? "Use a current Chrome or Edge browser, or type your message on the Chat page."
                   : "Speech audio is processed on this PC and is not saved."}
               </p>
-              {!health?.cloud_deployment && !voiceStatus?.dependencies_installed ? (
+              {!cloudDeployment && !voiceStatus?.dependencies_installed ? (
                 <code className="mt-3 block rounded-lg bg-black/40 p-3 text-xs text-astra-cyan">
                   backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
                 </code>
               ) : null}
-              {!health?.cloud_deployment ? (
+              {!cloudDeployment ? (
                 <button
                   type="button"
                   disabled={working || !voiceStatus?.dependencies_installed}
@@ -225,11 +339,15 @@ export function VoicePage() {
                   disabled={recording || working}
                   className="rounded-lg border border-astra-cyan/25 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none focus:border-astra-cyan"
                 >
-                  <option value="auto">Detect automatically</option>
+                  <option value="auto">{cloudDeployment ? "Use browser language" : "Detect automatically"}</option>
                   <option value="en">English</option>
                   <option value="ur">Urdu</option>
                 </select>
-                <span>Automatic detection supports multilingual speech; select English or Urdu to force recognition.</span>
+                <span>
+                  {cloudDeployment
+                    ? "Browser recognition uses its selected language; choose English or Urdu to override your browser language."
+                    : "Automatic detection supports multilingual speech; select English or Urdu to force recognition."}
+                </span>
               </label>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -300,8 +418,8 @@ export function VoicePage() {
             </div>
           ) : null}
           <p className="text-xs leading-5 text-astra-muted">
-            {health?.cloud_deployment
-              ? "Voice input requires ASTRA's local backend. Hosted text chat remains available in the Chat page."
+            {cloudDeployment
+              ? "Your browser performs speech recognition, and ASTRA receives the resulting text for chat. Browser speech services may process audio according to that browser provider's policies. Microphone access starts only after you press Start; spoken replies use your browser's speech engine."
               : <>
                   Recording is sent only to ASTRA on this PC for local Whisper transcription; audio is held temporarily and
                   deleted after processing. The recognized text is saved in conversation history and sent to your selected

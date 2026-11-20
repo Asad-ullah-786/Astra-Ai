@@ -62,7 +62,12 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origin_list,
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Astra-Provider-Key",
+            "X-Astra-Provider",
+        ],
     )
     app.include_router(api_router, prefix="/api/v1")
     app.include_router(websocket_router)

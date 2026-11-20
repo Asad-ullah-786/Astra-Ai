@@ -380,7 +380,10 @@ export function DashboardPage() {
 
         <Panel title="QUICK COMMANDS" className="dashboard-panel quick-panel">
           {health?.cloud_deployment ? (
-            <p className="text-xs text-astra-muted">Windows app launching is only available from a local backend.</p>
+            <p className="text-xs leading-5 text-astra-muted">
+              Online: AI chat, research, saved tasks/memory, and browser speech where supported. Windows app launching,
+              local Whisper, and this device's system metrics need a local companion; no companion download is released yet.
+            </p>
           ) : (
             <>
               <QuickAction label={workingAction === "code" ? "Opening VS Code..." : "Open VS Code"} icon={Code2} disabled={Boolean(workingAction)} onClick={() => void launch("code")} />

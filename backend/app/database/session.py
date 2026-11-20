@@ -102,8 +102,38 @@ async def init_database() -> None:
         if engine.dialect.name == "sqlite":
             await connection.execute(text("PRAGMA journal_mode=WAL"))
         await connection.run_sync(Base.metadata.create_all)
+        await _migrate_account_ownership(connection)
         if engine.dialect.name == "sqlite":
             await _migrate_task_status(connection)
+
+
+async def _migrate_account_ownership(connection: AsyncConnection) -> None:
+    tables = ("conversations", "messages", "activity_logs", "tasks", "personal_memories")
+    if connection.dialect.name == "sqlite":
+        for table in tables:
+            result = await connection.execute(text(f"PRAGMA table_info({table})"))
+            columns = {row._mapping["name"] for row in result}
+            if "owner_id" not in columns:
+                await connection.execute(text(f"ALTER TABLE {table} ADD COLUMN owner_id VARCHAR(36)"))
+            await connection.execute(
+                text(f"CREATE INDEX IF NOT EXISTS ix_{table}_owner_id ON {table} (owner_id)")
+            )
+        return
+
+    for table in tables:
+        result = await connection.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = current_schema() AND table_name = :table"
+            ),
+            {"table": table},
+        )
+        columns = {row._mapping["column_name"] for row in result}
+        if "owner_id" not in columns:
+            await connection.execute(text(f"ALTER TABLE {table} ADD COLUMN owner_id VARCHAR(36)"))
+        await connection.execute(
+            text(f"CREATE INDEX IF NOT EXISTS ix_{table}_owner_id ON {table} (owner_id)")
+        )
 
 
 async def _migrate_task_status(connection: AsyncConnection) -> None:

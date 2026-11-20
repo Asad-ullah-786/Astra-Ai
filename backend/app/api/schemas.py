@@ -17,6 +17,38 @@ class HealthResponse(BaseModel):
     time_utc: datetime
 
 
+class AccountCredentialsIn(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=12, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        cleaned = value.strip().casefold()
+        local, separator, domain = cleaned.partition("@")
+        if not separator or not local or "." not in domain or any(character.isspace() for character in cleaned):
+            raise ValueError("Enter a valid email address.")
+        return cleaned
+
+
+class AccountOut(BaseModel):
+    id: str
+    email: str
+
+
+class AccountSessionOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    account: AccountOut
+
+
+class AIUsageOut(BaseModel):
+    used_today: int
+    daily_limit: int | None
+    remaining: int | None
+
+
 class SystemSnapshot(BaseModel):
     cpu_percent: float
     cpu_count: int

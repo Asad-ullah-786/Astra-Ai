@@ -189,6 +189,8 @@ export interface SettingsPayload {
 
 export interface CommandSendOptions {
   responseLanguage?: string;
+  providerKey?: string;
+  providerName?: "gemini" | "openai";
   onToken?: (chunk: string) => void;
 }
 

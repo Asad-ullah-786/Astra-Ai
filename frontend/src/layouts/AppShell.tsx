@@ -397,10 +397,6 @@ export function AppShell() {
                 >
                   {tokenSubmitting ? "CREATING GUEST..." : "CONTINUE AS GUEST"}
                 </button>
-                <p className="m-0 w-full text-xs text-astra-muted">
-                  No email or password. This guest workspace is tied to this browser tab; closing it ends access.
-                  Device files and sensors are never shared without browser permission.
-                </p>
               </div>
             ) : (
               <form className="flex min-w-0 flex-1 flex-wrap gap-2 sm:flex-nowrap" onSubmit={(event) => void applyApiToken(event)}>

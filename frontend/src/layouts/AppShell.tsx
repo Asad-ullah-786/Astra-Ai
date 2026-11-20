@@ -255,9 +255,11 @@ export function AppShell() {
             <Mic className="size-4" /> TAP TO SPEAK
           </NavLink>
           <p className="astra-privacy-note">
-            {modules.find((item) => item.id === "voice")?.status === "online"
-              ? "Local push-to-talk is ready."
-              : "Install the local speech model to enable transcription."}
+            {health?.cloud_deployment
+              ? "Browser speech is available where supported."
+              : modules.find((item) => item.id === "voice")?.status === "online"
+                ? "Local push-to-talk is ready."
+                : "Install the local speech model to enable transcription."}
           </p>
         </section>
 

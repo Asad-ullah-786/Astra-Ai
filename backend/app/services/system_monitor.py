@@ -22,7 +22,7 @@ def system_snapshot() -> dict:
         prime_cpu()
 
     memory = psutil.virtual_memory()
-    battery = psutil.sensors_battery()
+    battery = None if cloud_deployment else psutil.sensors_battery()
     disk_root = Path.home().anchor or "C:\\"
     disk = psutil.disk_usage(disk_root)
     return {

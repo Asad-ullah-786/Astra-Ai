@@ -103,6 +103,25 @@ def test_system_snapshot_is_real(client):
     assert "Windows" in body["platform"] or body["hostname"]
 
 
+def test_cloud_system_snapshot_skips_unavailable_battery_sensor(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import system_monitor
+
+    monkeypatch.setattr(
+        system_monitor,
+        "get_settings",
+        lambda: SimpleNamespace(is_vercel_deployment=True),
+    )
+
+    def missing_battery_sensor():
+        raise FileNotFoundError("no power supply sensor")
+
+    monkeypatch.setattr(system_monitor.psutil, "sensors_battery", missing_battery_sensor)
+
+    assert system_monitor.system_snapshot()["battery_percent"] is None
+
+
 def test_modules_are_honest(client):
     response = client.get("/api/v1/modules")
     assert response.status_code == 200

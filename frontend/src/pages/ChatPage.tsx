@@ -8,6 +8,7 @@ import { useAstra } from "../hooks/useAstra.ts";
 export function ChatPage() {
   const {
     aiStatus,
+    health,
     online,
     messages,
     commandError,
@@ -35,6 +36,7 @@ export function ChatPage() {
     ? aiStatus?.selected_model?.slice(selectedPrefix.length)
     : aiStatus?.selected_model;
   const selectedProviderName = isOpenAISelected ? "OPENAI" : "GEMINI";
+  const ollamaModelLabel = health?.cloud_deployment ? "HOSTED OLLAMA MODEL" : "LOCAL MODEL";
   const busy = state === "processing" || state === "thinking" || state === "speaking";
 
   return (
@@ -49,13 +51,13 @@ export function ChatPage() {
               <h1 className="font-display text-sm tracking-[0.2em] text-white">AI CORE</h1>
               <span className={`mt-1 block font-mono text-[0.65rem] ${modelReady ? "text-astra-ok" : "text-amber-300"}`}>
                 {modelReady
-                  ? `${isCloudSelected ? `${selectedProviderName} CLOUD MODEL` : "LOCAL MODEL"} · ${selectedModelName}`
+                  ? `${isCloudSelected ? `${selectedProviderName} CLOUD MODEL` : ollamaModelLabel} · ${selectedModelName}`
                   : aiStatus?.connected
                     ? "OLLAMA CONNECTED · SELECT A MODEL"
                     : isCloudSelected && selectedCloudStatus?.configured
                       ? `${selectedProviderName} API UNAVAILABLE`
                     : online
-                      ? "LOCAL MODEL UNAVAILABLE"
+                      ? health?.cloud_deployment ? "SELECT A CLOUD OR HOSTED MODEL" : "LOCAL MODEL UNAVAILABLE"
                       : "CONNECTING TO ASTRA"}
               </span>
             </span>
@@ -86,7 +88,9 @@ export function ChatPage() {
           <p className="mt-4 rounded-lg border border-amber-300/15 bg-amber-950/10 px-3 py-2 text-xs leading-5 text-amber-100/80" role="status">
             {isCloudSelected
               ? selectedCloudStatus?.error ?? `Choose a connected ${selectedProviderName} model in Model settings.`
-              : aiStatus?.error ?? "Chat responses need an installed Ollama model selected in Model settings."}
+              : health?.cloud_deployment && !aiStatus?.selected_model
+                ? "Choose a connected Gemini/OpenAI model, or configure hosted Ollama in Model settings."
+                : aiStatus?.error ?? `Chat responses need an installed ${health?.cloud_deployment ? "hosted Ollama" : "local Ollama"} model selected in Model settings.`}
           </p>
         ) : null}
       </section>
@@ -99,8 +103,12 @@ export function ChatPage() {
             </h2>
             <p className="mt-1 text-xs text-astra-muted">
               {messages.length
-                ? isCloudSelected ? `Your conversation is sent to ${isOpenAISelected ? "OpenAI" : "Google Gemini"}.` : "Your local conversation continues here."
-                : isCloudSelected ? `Ask the selected ${isOpenAISelected ? "OpenAI" : "Gemini"} model anything.` : "Ask the selected local model anything."}
+                ? isCloudSelected
+                  ? `Your conversation is sent to ${isOpenAISelected ? "OpenAI" : "Google Gemini"}.`
+                  : health?.cloud_deployment ? "Your conversation is sent to the configured hosted Ollama server." : "Your local conversation continues here."
+                : isCloudSelected
+                  ? `Ask the selected ${isOpenAISelected ? "OpenAI" : "Gemini"} model anything.`
+                  : health?.cloud_deployment ? "Ask the selected hosted Ollama model anything." : "Ask the selected local model anything."}
             </p>
           </div>
           <span className="rounded-full border border-white/10 px-2 py-1 font-mono text-[0.6rem] text-astra-muted">

@@ -47,6 +47,7 @@ The root `vercel.json` deploys the React frontend and FastAPI backend as Vercel 
 - `ASTRA_DATABASE_URL`: a pooled managed PostgreSQL connection URL. The backend also accepts `DATABASE_URL` or `POSTGRES_URL`.
 - `ASTRA_API_TOKEN`: a unique secret at least 32 characters long. It signs account sessions; visitors must not receive or enter this value.
 - `GEMINI_API_KEY` and/or `OPENAI_API_KEY`: project-owned provider keys used for shared-key chat.
+- Optional `ASTRA_OLLAMA_URL`: public HTTPS base URL for a separately hosted Ollama service. Vercel cannot connect to a visitor's `localhost`. If the Ollama host is behind a bearer-authenticated gateway, set `ASTRA_OLLAMA_API_KEY` as a Vercel secret too.
 
 Visitors continue as guests without email or password. ASTRA creates a random guest identity and scopes chats, memories, tasks, settings, activity, and quota to it. Its 12-hour bearer token stays in that browser tab's session storage; closing the tab ends access, and guest data cannot be recovered or moved to another device. Existing pre-account records stay unassigned and hidden rather than being exposed to a guest.
 
@@ -68,7 +69,13 @@ Install the free Ollama desktop app, start it, and download a model using its CL
 ollama pull qwen2.5:3b
 ```
 
-In ASTRA Settings, refresh the Ollama connection and select an installed model. Model downloads take disk space and generation uses additional RAM beyond the model file size. Choose a model that fits your hardware; smaller models generally respond faster on low-memory computers. Ollama must remain running while AI chat is in use. ASTRA connects only to a local Ollama endpoint (`127.0.0.1`, `localhost`, or `::1`).
+Download Ollama from [ollama.com/download](https://ollama.com/download), then run:
+
+```bat
+ollama run qwen2.5:3b
+```
+
+In ASTRA Settings, check the Ollama connection, select the installed model, and choose **USE MODEL**. Local Ollama is available when ASTRA also runs on that same computer (for example with `start_astra.bat` at `http://127.0.0.1:5173`). The hosted Vercel website cannot reach the visitor's PC; connecting Ollama to the online site requires an independently hosted, publicly reachable HTTPS Ollama service configured with `ASTRA_OLLAMA_URL`. Model downloads take disk space and generation uses additional RAM beyond the model file size.
 
 Ollama with `qwen2.5:1.5b` has been installed and a real local response verified on this machine.
 

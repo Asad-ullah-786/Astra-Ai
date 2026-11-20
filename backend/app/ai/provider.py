@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+import ipaddress
 import json
 from typing import Protocol
 from urllib.parse import quote, urlsplit
@@ -54,12 +55,44 @@ class OllamaProvider(LanguageModel):
     def __init__(self, model: str | None = None) -> None:
         settings = get_settings()
         self.base_url = settings.ollama_url.rstrip("/")
-        endpoint = urlsplit(self.base_url)
-        if endpoint.scheme != "http" or endpoint.hostname not in {"127.0.0.1", "localhost", "::1"}:
-            raise AIProviderError("ASTRA only connects to an Ollama service on this computer.")
+        try:
+            endpoint = urlsplit(self.base_url)
+        except ValueError as exc:
+            raise AIProviderError("ASTRA_OLLAMA_URL is not a valid server URL.") from exc
+        if (
+            not endpoint.hostname
+            or endpoint.username is not None
+            or endpoint.password is not None
+            or endpoint.path not in {"", "/"}
+            or endpoint.query
+            or endpoint.fragment
+        ):
+            raise AIProviderError("ASTRA_OLLAMA_URL must be an Ollama server base URL without embedded credentials or a path.")
+        local_hosts = {"127.0.0.1", "localhost", "::1"}
+        is_local = endpoint.hostname.lower() in local_hosts
+        if _is_vercel_deployment():
+            if (
+                endpoint.scheme != "https"
+                or is_local
+                or endpoint.hostname.lower().endswith((".localhost", ".local", ".internal", ".lan"))
+            ):
+                raise AIProviderError(
+                    "Set ASTRA_OLLAMA_URL in Vercel to the public HTTPS address of your hosted Ollama server. "
+                    "A local Ollama installation is not required."
+                )
+            try:
+                address = ipaddress.ip_address(endpoint.hostname)
+            except ValueError:
+                address = None
+            if address is not None and not address.is_global:
+                raise AIProviderError("The hosted Ollama URL must use a publicly reachable HTTPS address.")
+        elif endpoint.scheme != "http" or not is_local:
+            raise AIProviderError("Local ASTRA only connects to Ollama on this computer.")
         self.model = model.strip() if model else ""
         self.name = f"ollama:{self.model}" if self.model else "ollama (no model selected)"
         self.timeout = httpx.Timeout(300.0, connect=2.0)
+        api_key = getattr(settings, "ollama_api_key", "").strip()
+        self.headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
     async def complete(self, history: list[dict[str, str]]) -> str:
         return "".join([chunk async for chunk in self.stream(history)])
@@ -70,9 +103,13 @@ class OllamaProvider(LanguageModel):
                 base_url=self.base_url,
                 timeout=httpx.Timeout(8.0, connect=2.0),
             ) as client:
-                response = await client.get("/api/tags")
+                response = await client.get("/api/tags", headers=self.headers)
                 response.raise_for_status()
         except (httpx.HTTPError, ValueError) as exc:
+            if _is_vercel_deployment():
+                raise AIProviderError(
+                    "Hosted Ollama could not be reached. Check the Vercel ASTRA_OLLAMA_URL and server availability."
+                ) from exc
             raise AIProviderError(
                 "Ollama is unavailable. Start Ollama on this computer and try again."
             ) from exc
@@ -108,6 +145,7 @@ class OllamaProvider(LanguageModel):
                 async with client.stream(
                     "POST",
                     "/api/chat",
+                    headers=self.headers,
                     json={"model": self.model, "messages": history, "stream": True},
                 ) as response:
                     if response.is_error:
@@ -133,6 +171,10 @@ class OllamaProvider(LanguageModel):
         except AIProviderError:
             raise
         except httpx.HTTPError as exc:
+            if _is_vercel_deployment():
+                raise AIProviderError(
+                    "The hosted Ollama connection failed while generating a reply. Check the server and model capacity."
+                ) from exc
             raise AIProviderError(
                 "The Ollama connection failed while generating a reply. Check that Ollama is running."
             ) from exc
@@ -444,6 +486,4 @@ def get_language_model(model: str | None = None, api_key: str | None = None) -> 
         return GeminiProvider(model.removeprefix("gemini:"), api_key)
     if model and model.startswith("openai:"):
         return OpenAIProvider(model.removeprefix("openai:"), api_key)
-    if _is_vercel_deployment():
-        raise AIProviderError("Select a configured Gemini or OpenAI cloud model in Settings before chatting.")
     return OllamaProvider(model)

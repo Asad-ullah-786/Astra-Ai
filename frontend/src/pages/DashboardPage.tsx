@@ -262,7 +262,7 @@ export function DashboardPage() {
                     <Icon className="size-4" />
                   </span>
                   <span className="ai-model-copy">
-                    <strong>{card.name}</strong>
+                    <strong>{health?.cloud_deployment && card.id === "ollama" ? "Hosted Ollama" : card.name}</strong>
                     <small>{card.status}</small>
                   </span>
                   <i className={`status-light ${card.state === "connected" || card.state === "available" ? "is-green" : ""}`} />
@@ -287,9 +287,9 @@ export function DashboardPage() {
                 : aiStatus?.selected_model?.startsWith("gemini:") && geminiConnected
                 ? "GEMINI CLOUD MODEL ONLINE"
                 : aiStatus?.connected && aiStatus.selected_model
-                  ? "LOCAL MODEL ONLINE"
+                  ? health?.cloud_deployment ? "HOSTED OLLAMA MODEL ONLINE" : "LOCAL MODEL ONLINE"
                   : aiStatus?.connected
-                    ? "LOCAL SERVICE ONLINE"
+                    ? health?.cloud_deployment ? "HOSTED OLLAMA ONLINE" : "LOCAL SERVICE ONLINE"
                     : geminiConnected
                       ? "GEMINI API AVAILABLE"
                       : "AI CORE OFFLINE"}

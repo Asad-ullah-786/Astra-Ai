@@ -546,8 +546,6 @@ async def _openai_status() -> GeminiStatusOut:
 
 
 async def _ollama_models_status() -> tuple[list[InstalledModel], str | None]:
-    if get_settings().is_vercel_deployment:
-        return [], "Local Ollama is unavailable in the hosted backend."
     try:
         models = await asyncio.wait_for(get_language_model().list_models(), timeout=8.0)
         return models, None
@@ -609,7 +607,8 @@ async def select_ai_model(
         except AIProviderError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         if not any(item.name == payload.model for item in models):
-            raise HTTPException(status_code=422, detail="Choose a model installed in Ollama on this computer.")
+            location = "the hosted Ollama server" if get_settings().is_vercel_deployment else "this computer"
+            raise HTTPException(status_code=422, detail=f"Choose a model installed in Ollama on {location}.")
     await write_ai_model(session, payload.model, user_id)
     return await ai_status(user_id, session)
 

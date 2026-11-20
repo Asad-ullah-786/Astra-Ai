@@ -22,6 +22,7 @@ export function SettingsPage() {
   const [personalProvider, setPersonalProvider] = useState(getPersonalProviderName);
   const [personalKey, setPersonalKey] = useState("");
   const [hasPersonalKey, setHasPersonalKey] = useState(hasPersonalProviderKey);
+  const [ollamaCommandCopied, setOllamaCommandCopied] = useState(false);
   const name = nameOverride ?? settings?.user_display_name ?? "";
   const selectedModel = aiStatus?.selected_model ?? "";
   const geminiStatus = aiStatus?.gemini;
@@ -183,14 +184,16 @@ export function SettingsPage() {
         </Panel>
       ) : null}
 
-      <Panel title="LOCAL AI MODEL · OLLAMA">
+      <Panel title={health?.cloud_deployment ? "HOSTED AI MODEL · OLLAMA" : "LOCAL AI MODEL · OLLAMA"}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className={`font-mono text-xs tracking-[0.16em] ${aiStatus?.connected ? "text-astra-ok" : "text-astra-danger"}`}>
               {aiStatus?.connected ? "OLLAMA CONNECTED" : "OLLAMA NOT CONNECTED"}
             </p>
             <p className="mt-1 text-sm text-astra-muted">
-              {selectedLocalModel ? `Selected: ${selectedLocalModel}` : "No local model selected"}
+              {selectedLocalModel
+                ? `Selected: ${selectedLocalModel}`
+                : health?.cloud_deployment ? "No hosted Ollama model selected" : "No local model selected"}
             </p>
           </div>
           <button
@@ -221,10 +224,11 @@ export function SettingsPage() {
         ) : null}
         <p className="mt-4 text-sm leading-6 text-astra-muted">
           {health?.cloud_deployment
-            ? "Vercel cannot access an Ollama service on your computer. Use the Gemini section below for hosted chat. The backend runtime reports"
+            ? "Hosted Ollama runs on the server configured by ASTRA_OLLAMA_URL in Vercel; Ollama does not need to be installed on your PC. Use the public HTTPS address of your Ollama server. If it requires gateway authentication, set ASTRA_OLLAMA_API_KEY in Vercel."
             : "When Ollama is selected, AI runs locally and chat history stays on this computer. Installed local models only appear here. Your computer reports"}{" "}
-          {stats ? `${stats.ram_total_gb.toFixed(1)} GB RAM` : "its RAM size"};
-          models also need extra memory while generating, so larger models may run slowly or fail to load.
+          {!health?.cloud_deployment
+            ? <>{stats ? `${stats.ram_total_gb.toFixed(1)} GB RAM` : "its RAM size"}; models also need extra memory while generating, so larger models may run slowly or fail to load.</>
+            : null}
         </p>
         {aiStatus?.models.length ? (
           <form
@@ -238,19 +242,21 @@ export function SettingsPage() {
                   setModelOverride(null);
                   setGeminiModelOverride(null);
                   setOpenAIModelOverride(null);
-                  setNotice("Local model selection saved.");
+                  setNotice(health?.cloud_deployment ? "Hosted Ollama model selected." : "Local model selection saved.");
                 })
                 .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "The model could not be selected."));
             }}
           >
-            <label className="sr-only" htmlFor="ai-model">Installed Ollama model</label>
+            <label className="sr-only" htmlFor="ai-model">
+              {health?.cloud_deployment ? "Hosted Ollama model" : "Installed Ollama model"}
+            </label>
             <select
               id="ai-model"
               value={selectedLocalModel}
               onChange={(event) => setModelOverride(event.target.value)}
               className="min-w-0 flex-1 rounded-xl border border-astra-cyan/30 bg-[#080d18] px-4 py-3 outline-none focus:border-astra-cyan"
             >
-              <option value="">Choose an installed model</option>
+              <option value="">{health?.cloud_deployment ? "Choose a hosted model" : "Choose an installed model"}</option>
               {aiStatus.models.map((model) => (
                 <option key={model.name} value={model.name}>
                   {model.name} · {(model.size / 1_000_000_000).toFixed(1)} GB
@@ -269,20 +275,72 @@ export function SettingsPage() {
         ) : null}
         {aiStatus?.connected && aiStatus.models.length === 0 ? (
           <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-astra-muted">
-            No local models are installed. Install Ollama, then run a small model such as{" "}
-            <code className="font-mono text-astra-cyan">ollama pull qwen2.5:3b</code> in a terminal and check again.
-            Model downloads are large and use your disk and RAM; ASTRA will not download one automatically.
+            {health?.cloud_deployment
+              ? "The hosted Ollama server has no models installed. Install a model on that server, then check the connection again."
+              : <>No local models are installed. Run a small model such as{" "}
+                  <code className="font-mono text-astra-cyan">ollama run qwen2.5:3b</code> in a terminal and check again.
+                  Model downloads use disk space and RAM; ASTRA will not download one automatically.</>}
           </div>
         ) : null}
       </Panel>
 
-      <Panel title={health?.cloud_deployment ? "LOCAL MODEL QUEUE · UNAVAILABLE ON VERCEL" : "LOCAL MODEL DOWNLOAD QUEUE"}>
-        <p className="mb-4 text-sm leading-6 text-astra-muted">
-          {health?.cloud_deployment
-            ? "Local Ollama models and downloads are only available when ASTRA runs on your computer."
-            : "Ollama installs these models one at a time. ASTRA checks the installed-model list and makes each one selectable as soon as Ollama verifies it; partial downloads are not shown as available."}
+      <Panel title="OPTIONAL · INSTALL OLLAMA ON YOUR PC">
+        <p className="text-sm leading-6 text-astra-muted">
+          You can use Ollama locally without a Gemini/OpenAI key. Download and install Ollama, then open a terminal and run
+          the command below. The first run downloads the model.
         </p>
-        {!health?.cloud_deployment ? <ol className="flex flex-col gap-3">
+        <a
+          href="https://ollama.com/download"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex rounded-lg border border-astra-cyan/40 px-4 py-2 text-sm text-astra-cyan"
+        >
+          DOWNLOAD OLLAMA
+        </a>
+        <a
+          href="https://github.com/Asad-ullah-786/Astra-Ai/archive/refs/heads/main.zip"
+          target="_blank"
+          rel="noreferrer"
+          className="ml-2 mt-3 inline-flex rounded-lg border border-white/15 px-4 py-2 text-sm text-astra-muted"
+        >
+          DOWNLOAD ASTRA FOR PC
+        </a>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <code className="rounded-lg bg-black/40 px-3 py-2 font-mono text-sm text-white">ollama run qwen2.5:3b</code>
+          <button
+            type="button"
+            onClick={() => {
+              if (!navigator.clipboard) {
+                setError("Clipboard access is unavailable in this browser. Select and copy the command instead.");
+                return;
+              }
+              void navigator.clipboard.writeText("ollama run qwen2.5:3b")
+                .then(() => setOllamaCommandCopied(true))
+                .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Could not copy the Ollama command."));
+            }}
+            className="rounded-lg border border-white/15 px-3 py-2 text-xs text-astra-muted"
+          >
+            {ollamaCommandCopied ? "COPIED" : "COPY COMMAND"}
+          </button>
+        </div>
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs leading-5 text-astra-muted">
+          <li>Install Ollama from the download link and run the command above once.</li>
+          <li>To use it with ASTRA, download and extract ASTRA for PC, install the prerequisites in its README, then run <code>start_astra.bat</code> on that PC and open <code>http://127.0.0.1:5173</code>.</li>
+          <li>Return here, press CHECK CONNECTION, select the downloaded model, and choose USE MODEL.</li>
+        </ol>
+        {health?.cloud_deployment ? (
+          <p className="mt-3 text-xs leading-5 text-amber-200/80">
+            This local install works with ASTRA running on your PC. The hosted Vercel website cannot reach your PC's Ollama;
+            using Ollama from the hosted site requires a separate public HTTPS Ollama server configured by the ASTRA operator.
+          </p>
+        ) : null}
+      </Panel>
+
+      {!health?.cloud_deployment ? <Panel title="LOCAL MODEL DOWNLOAD QUEUE">
+        <p className="mb-4 text-sm leading-6 text-astra-muted">
+          Ollama installs these models one at a time. ASTRA checks the installed-model list and makes each one selectable as soon as Ollama verifies it; partial downloads are not shown as available.
+        </p>
+        <ol className="flex flex-col gap-3">
           {localModelDownloadQueue.map((item, index) => (
             <li
               key={item.id}
@@ -311,8 +369,8 @@ export function SettingsPage() {
               </span>
             </li>
           ))}
-        </ol> : null}
-      </Panel>
+        </ol>
+      </Panel> : null}
 
       <Panel title="CLOUD AI MODEL · GOOGLE GEMINI">
         <div className="flex flex-wrap items-center justify-between gap-3">

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     )
     stats_interval_seconds: float = Field(default=2.0, alias="ASTRA_STATS_INTERVAL")
     ollama_url: str = Field(default="http://127.0.0.1:11434", alias="ASTRA_OLLAMA_URL")
+    ollama_api_key: str = Field(default="", alias="ASTRA_OLLAMA_API_KEY")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
 

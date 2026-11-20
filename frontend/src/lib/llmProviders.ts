@@ -185,8 +185,8 @@ export function getLLMStatusCards(aiStatus: AIStatus | null): LLMStatusCard[] {
       }
       const clientId = entry.id.replace("-", "_");
       return aiStatus.clients[clientId]
-        ? { id: entry.id, name: entry.name, status: "Installed · available", state: "available" }
-        : { id: entry.id, name: entry.name, status: "Available soon", state: "unavailable" };
+        ? { id: entry.id, name: entry.name, status: "Installed · connection needed", state: "setup" }
+        : { id: entry.id, name: entry.name, status: "Needs connection · connect on this PC", state: "setup" };
     }
 
     if (entry.id === "gemini" || entry.id === "openai") {

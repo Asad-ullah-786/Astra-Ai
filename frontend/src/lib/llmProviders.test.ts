@@ -116,8 +116,20 @@ describe("LLM status catalog", () => {
     expect(llama).toMatchObject({ status: "Available soon", state: "unavailable" });
     expect(openAI).toMatchObject({ status: "Setup required", state: "setup" });
     expect(gemini).toMatchObject({ status: "Setup required", state: "setup" });
-    expect(cursor).toMatchObject({ status: "Installed · available", state: "available" });
-    expect(copilot).toMatchObject({ status: "Installed · available", state: "available" });
+    expect(cursor).toMatchObject({ status: "Installed · connection needed", state: "setup" });
+    expect(copilot).toMatchObject({ status: "Installed · connection needed", state: "setup" });
+  });
+
+  it("asks the user to connect Cursor and Copilot on their own PC when not detected", () => {
+    const cards = getLLMStatusCards({
+      ...connectedAI,
+      clients: { claude_code: false, cursor: false, copilot: false },
+    });
+
+    expect(cards.find((card) => card.id === "cursor"))
+      .toMatchObject({ status: "Needs connection · connect on this PC", state: "setup" });
+    expect(cards.find((card) => card.id === "copilot"))
+      .toMatchObject({ status: "Needs connection · connect on this PC", state: "setup" });
   });
 
   it("reports Gemini connection and selected-model state from the real API status", () => {

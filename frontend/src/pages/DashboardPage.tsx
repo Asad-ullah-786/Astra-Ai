@@ -381,8 +381,7 @@ export function DashboardPage() {
         <Panel title="QUICK COMMANDS" className="dashboard-panel quick-panel">
           {health?.cloud_deployment ? (
             <p className="text-xs leading-5 text-astra-muted">
-              Online: AI chat, research, saved tasks/memory, and browser speech where supported. Windows app launching,
-              local Whisper, and this device's system metrics need a local companion; no companion download is released yet.
+              Online: AI chat, research, saved tasks/memory, and browser speech where supported. Open Automation to pair the optional Windows companion for approved app and website launches; screen capture, selected text files, microphone, and local camera preview use browser permission prompts.
             </p>
           ) : (
             <>

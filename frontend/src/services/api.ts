@@ -21,7 +21,7 @@ export interface AccountSession {
   access_token: string;
   token_type: "bearer";
   expires_in: number;
-  account: { id: string; email: string };
+  account: { id: string; email: string | null; is_guest: boolean };
 }
 
 export interface AIUsage {
@@ -52,15 +52,9 @@ export function setApiToken(token: string): void {
   }
 }
 
-export async function authenticateAccount(
-  email: string,
-  password: string,
-  mode: "login" | "register",
-): Promise<AccountSession> {
-  const response = await fetch(`${apiBase()}/api/v1/auth/${mode}`, {
+export async function createGuestSession(): Promise<AccountSession> {
+  const response = await fetch(`${apiBase()}/api/v1/auth/guest`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
   });
   if (!response.ok) {
     throw new ApiError(response.status, await errorMessage(response));

@@ -77,13 +77,14 @@ export function SettingsPage() {
       </Panel>
 
       {health?.cloud_deployment ? (
-        <Panel title="CLOUD MESSAGE ALLOWANCE · PERSONAL API KEY">
+        <Panel title="GUEST MESSAGE ALLOWANCE · PERSONAL API KEY">
           <p className="text-sm leading-6 text-astra-muted">
             {usage?.daily_limit == null
               ? "Loading your daily shared-key allowance..."
               : `${usage.remaining} of ${usage.daily_limit} shared-key AI messages remain today (${usage.used_today} used, UTC day).`}
             {" "}The project owner pays for shared-key requests. After the daily allowance, add your own Gemini or OpenAI key;
-            your provider may bill you directly.
+            your provider may bill you directly. The shared allowance belongs to this anonymous guest workspace, and guest
+            creation is rate-limited by the server.
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <label className="sr-only" htmlFor="personal-provider">Personal API-key provider</label>
@@ -145,40 +146,42 @@ export function SettingsPage() {
         </Panel>
       ) : null}
 
-      <Panel title="API TOKEN">
-        <p className="mb-3 text-sm leading-6 text-astra-muted">
-          When backend authentication is enabled, paste the same ASTRA_API_TOKEN value here. It stays in this browser
-          session and is not written to the database.
-        </p>
-        <form
-          className="flex flex-col gap-3 sm:flex-row"
-          onSubmit={(event) => {
-            event.preventDefault();
-            saveApiToken(token);
-            setError(null);
-            setNotice(token.trim() ? "Token stored for this browser session." : "Session token cleared.");
-          }}
-        >
-          <label className="sr-only" htmlFor="api-token">
-            API token
-          </label>
-          <input
-            id="api-token"
-            type="password"
-            value={token}
-            autoComplete="off"
-            onChange={(event) => setToken(event.target.value)}
-            className="min-w-0 flex-1 rounded-xl border border-astra-cyan/30 bg-black/40 px-4 py-3 outline-none focus:border-astra-cyan"
-          />
-          <button type="submit" className="rounded-xl border border-astra-cyan/40 px-4 py-3 font-display text-xs tracking-[0.16em] text-astra-cyan">
-            APPLY TOKEN
-          </button>
-        </form>
-        <p className="mt-3 font-mono text-xs text-astra-muted">
-          Backend auth {health?.auth_required ? "required" : "not required"} · model {health?.model ?? "unknown"} · phase{" "}
-          {health?.phase ?? "—"}
-        </p>
-      </Panel>
+      {health && !health.cloud_deployment ? (
+        <Panel title="API TOKEN">
+          <p className="mb-3 text-sm leading-6 text-astra-muted">
+            When backend authentication is enabled, paste the same ASTRA_API_TOKEN value here. It stays in this browser
+            session and is not written to the database.
+          </p>
+          <form
+            className="flex flex-col gap-3 sm:flex-row"
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveApiToken(token);
+              setError(null);
+              setNotice(token.trim() ? "Token stored for this browser session." : "Session token cleared.");
+            }}
+          >
+            <label className="sr-only" htmlFor="api-token">
+              API token
+            </label>
+            <input
+              id="api-token"
+              type="password"
+              value={token}
+              autoComplete="off"
+              onChange={(event) => setToken(event.target.value)}
+              className="min-w-0 flex-1 rounded-xl border border-astra-cyan/30 bg-black/40 px-4 py-3 outline-none focus:border-astra-cyan"
+            />
+            <button type="submit" className="rounded-xl border border-astra-cyan/40 px-4 py-3 font-display text-xs tracking-[0.16em] text-astra-cyan">
+              APPLY TOKEN
+            </button>
+          </form>
+          <p className="mt-3 font-mono text-xs text-astra-muted">
+            Backend auth {health.auth_required ? "required" : "not required"} · model {health.model ?? "unknown"} · phase{" "}
+            {health.phase ?? "—"}
+          </p>
+        </Panel>
+      ) : null}
 
       <Panel title="LOCAL AI MODEL · OLLAMA">
         <div className="flex flex-wrap items-center justify-between gap-3">

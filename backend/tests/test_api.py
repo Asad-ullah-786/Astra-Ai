@@ -58,6 +58,12 @@ def test_cloud_accounts_keep_private_data_and_enforce_shared_quota(client, monke
         async def complete(self, _history):
             return "A focused test reply."
 
+        async def list_models(self):
+            return [InstalledModel("test", 0, None, None)]
+
+        async def stream(self, _history):
+            yield "A focused test reply."
+
     def fake_model(_model=None, api_key=None):
         used_keys.append(api_key)
         return FakeModel()
@@ -75,19 +81,17 @@ def test_cloud_accounts_keep_private_data_and_enforce_shared_quota(client, monke
                 "/api/v1/tasks",
                 headers={"host": "astra-ai.vercel.app"},
             ).status_code == 401
-            first = client.post(
-                "/api/v1/auth/register",
-                json={"email": "first@example.com", "password": "correct horse battery"},
-                headers={"host": "astra-ai.vercel.app"},
-            )
-            second = client.post(
-                "/api/v1/auth/register",
-                json={"email": "second@example.com", "password": "correct battery horse"},
-                headers={"host": "astra-ai.vercel.app"},
-            )
+            first = client.post("/api/v1/auth/guest", headers={"host": "astra-ai.vercel.app"})
+            second = client.post("/api/v1/auth/guest", headers={"host": "astra-ai.vercel.app"})
             assert first.status_code == second.status_code == 201
+            assert first.json()["account"]["email"] is None
+            assert first.json()["account"]["is_guest"] is True
+            assert client.post("/api/v1/auth/register", headers={"host": "astra-ai.vercel.app"}).status_code == 404
             first_headers = {"Authorization": f"Bearer {first.json()['access_token']}", "host": "astra-ai.vercel.app"}
             second_headers = {"Authorization": f"Bearer {second.json()['access_token']}", "host": "astra-ai.vercel.app"}
+            current_guest = client.get("/api/v1/auth/me", headers=first_headers)
+            assert current_guest.json()["email"] is None
+            assert current_guest.json()["is_guest"] is True
             assert client.get(
                 "/api/v1/tasks",
                 headers={"Authorization": "Bearer forged.token", "host": "astra-ai.vercel.app"},
@@ -136,11 +140,12 @@ def test_cloud_accounts_keep_private_data_and_enforce_shared_quota(client, monke
 
             for index in range(19):
                 reply = client.post(
-                    "/api/v1/commands",
+                    "/api/v1/commands/stream",
                     json={"text": f"Shared-key message {index}"},
                     headers=first_headers,
                 )
                 assert reply.status_code == 200
+                assert '"type": "done"' in reply.text
             usage = client.get("/api/v1/account/usage", headers=first_headers)
             assert usage.json() == {"used_today": 20, "daily_limit": 20, "remaining": 0}
             exhausted = client.post(
@@ -151,7 +156,7 @@ def test_cloud_accounts_keep_private_data_and_enforce_shared_quota(client, monke
             assert exhausted.status_code == 429
 
             personal_key_reply = client.post(
-                "/api/v1/commands",
+                "/api/v1/commands/stream",
                 json={"text": "Use my own provider key"},
                 headers={
                     **first_headers,

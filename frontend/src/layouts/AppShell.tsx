@@ -28,8 +28,8 @@ import { useAstra } from "../hooks/useAstra.ts";
 import { useClock } from "../hooks/useClock.ts";
 import {
   apiGet,
-  authenticateAccount,
   clearPersonalProviderCredentials,
+  createGuestSession,
   getApiToken,
 } from "../services/api.ts";
 import type { AssistantState, CommandSendOptions } from "../types/index.ts";
@@ -102,9 +102,6 @@ export function AppShell() {
   const [apiToken, setApiToken] = useState(() => getApiToken());
   const [tokenSubmitting, setTokenSubmitting] = useState(false);
   const [tokenError, setTokenError] = useState("");
-  const [accountMode, setAccountMode] = useState<"login" | "register">("login");
-  const [accountEmail, setAccountEmail] = useState("");
-  const [accountPassword, setAccountPassword] = useState("");
   const [appMenuOpen, setAppMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const appMenuRef = useRef<HTMLDivElement>(null);
@@ -115,7 +112,7 @@ export function AppShell() {
   const pendingTaskCount = tasks.filter((task) => !task.completed).length;
   const tokenRequired = Boolean(
     health?.auth_required &&
-    (connectionError?.startsWith("Sign in to your ASTRA account") ||
+    (connectionError?.startsWith("Guest access is required") ||
       connectionError?.startsWith("This backend requires an API token.")),
   );
 
@@ -190,18 +187,16 @@ export function AppShell() {
     }
   }
 
-  async function submitAccount(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function continueAsGuest() {
     setTokenSubmitting(true);
     setTokenError("");
     try {
-      const session = await authenticateAccount(accountEmail, accountPassword, accountMode);
-      setAccountPassword("");
+      const session = await createGuestSession();
       saveApiToken(session.access_token);
       await apiGet("/api/v1/settings");
       await refresh();
     } catch (error) {
-      setTokenError(error instanceof Error ? error.message : "Could not connect to your ASTRA account.");
+      setTokenError(error instanceof Error ? error.message : "Could not create a guest workspace.");
     } finally {
       setTokenSubmitting(false);
     }
@@ -389,53 +384,24 @@ export function AppShell() {
           <section className="astra-connection-error flex flex-wrap items-center gap-3" aria-label="Backend authentication">
             <p className="m-0 flex-1" role="status">
               {health?.cloud_deployment
-                ? "ASTRA cloud is online. Sign in or create an account to access your private workspace."
+                ? "ASTRA cloud is online. Continue as guest to create your private workspace."
                 : "Backend is online. Enter its API token to unlock your private data and AI features."}
             </p>
             {health?.cloud_deployment ? (
-              <form className="flex min-w-0 flex-1 flex-wrap gap-2" onSubmit={(event) => void submitAccount(event)}>
-                <label className="sr-only" htmlFor="account-email">Email</label>
-                <input
-                  id="account-email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={accountEmail}
-                  onChange={(event) => setAccountEmail(event.target.value)}
-                  placeholder="Email"
-                  className="min-w-0 flex-1 rounded-lg border border-astra-cyan/30 bg-black/50 px-3 py-1.5 text-sm text-astra-text outline-none focus:border-astra-cyan"
-                />
-                <label className="sr-only" htmlFor="account-password">Password</label>
-                <input
-                  id="account-password"
-                  type="password"
-                  autoComplete={accountMode === "register" ? "new-password" : "current-password"}
-                  minLength={12}
-                  maxLength={128}
-                  required
-                  value={accountPassword}
-                  onChange={(event) => setAccountPassword(event.target.value)}
-                  placeholder="Password (12+ characters)"
-                  className="min-w-0 flex-1 rounded-lg border border-astra-cyan/30 bg-black/50 px-3 py-1.5 text-sm text-astra-text outline-none focus:border-astra-cyan"
-                />
-                <button
-                  type="submit"
-                  disabled={tokenSubmitting}
-                  className="rounded-lg border border-astra-cyan/40 px-3 py-1.5 text-xs text-astra-cyan disabled:opacity-50"
-                >
-                  {tokenSubmitting ? "CONNECTING..." : accountMode === "register" ? "CREATE ACCOUNT" : "SIGN IN"}
-                </button>
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <button
                   type="button"
-                  onClick={() => setAccountMode((mode) => mode === "login" ? "register" : "login")}
-                  className="rounded-lg px-2 py-1.5 text-xs text-astra-muted underline"
+                  disabled={tokenSubmitting}
+                  onClick={() => void continueAsGuest()}
+                  className="rounded-lg border border-astra-cyan/40 px-3 py-1.5 text-xs text-astra-cyan disabled:opacity-50"
                 >
-                  {accountMode === "login" ? "Create account" : "I already have an account"}
+                  {tokenSubmitting ? "CREATING GUEST..." : "CONTINUE AS GUEST"}
                 </button>
                 <p className="m-0 w-full text-xs text-astra-muted">
-                  Email verification and password recovery are not available yet. Use an email/password combination you can retain.
+                  No email or password. This guest workspace is tied to this browser tab; closing it ends access.
+                  Device files and sensors are never shared without browser permission.
                 </p>
-              </form>
+              </div>
             ) : (
               <form className="flex min-w-0 flex-1 flex-wrap gap-2 sm:flex-nowrap" onSubmit={(event) => void applyApiToken(event)}>
                 <label className="sr-only" htmlFor="connection-api-token">ASTRA API token</label>

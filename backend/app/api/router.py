@@ -11,7 +11,6 @@ from starlette.concurrency import run_in_threadpool
 from app.ai.provider import AIProviderError, GeminiProvider, InstalledModel, OpenAIProvider, get_language_model
 from app.api.schemas import (
     AIStatusOut,
-    AccountCredentialsIn,
     AccountOut,
     AccountSessionOut,
     AIUsageOut,
@@ -49,10 +48,9 @@ from app.database.session import get_session
 from app.database.models import User
 from app.security.accounts import (
     SESSION_HOURS,
-    authenticate_account,
+    create_guest_account,
     create_session_token,
     enforce_auth_rate_limit,
-    register_account,
     require_identity,
     validate_session_signing_key,
 )
@@ -136,18 +134,21 @@ def _account_session(user: User) -> AccountSessionOut:
     return AccountSessionOut(
         access_token=create_session_token(user.id),
         expires_in=SESSION_HOURS * 60 * 60,
-        account=AccountOut(id=user.id, email=user.email),
+        account=AccountOut(
+            id=user.id,
+            email=None if user.is_guest else user.email,
+            is_guest=user.is_guest,
+        ),
     )
 
 
-@api_router.post("/auth/register", response_model=AccountSessionOut, status_code=201)
-async def register(
-    payload: AccountCredentialsIn,
+@api_router.post("/auth/guest", response_model=AccountSessionOut, status_code=201)
+async def create_guest_session(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> AccountSessionOut:
     if not get_settings().is_vercel_deployment:
-        raise HTTPException(status_code=404, detail="Account sign-up is available on the hosted ASTRA service.")
+        raise HTTPException(status_code=404, detail="Guest workspaces are available on the hosted ASTRA service.")
     try:
         validate_session_signing_key()
     except RuntimeError as exc:
@@ -155,44 +156,12 @@ async def register(
     await enforce_auth_rate_limit(
         session,
         request,
-        "register-ip",
+        "guest-ip",
         "all",
-        maximum=5,
+        maximum=30,
         window_minutes=60,
     )
-    user = await register_account(session, payload.email, payload.password)
-    return _account_session(user)
-
-
-@api_router.post("/auth/login", response_model=AccountSessionOut)
-async def login(
-    payload: AccountCredentialsIn,
-    request: Request,
-    session: AsyncSession = Depends(get_session),
-) -> AccountSessionOut:
-    if not get_settings().is_vercel_deployment:
-        raise HTTPException(status_code=404, detail="Account sign-in is available on the hosted ASTRA service.")
-    try:
-        validate_session_signing_key()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    await enforce_auth_rate_limit(
-        session,
-        request,
-        "login-ip",
-        "all",
-        maximum=20,
-        window_minutes=15,
-    )
-    await enforce_auth_rate_limit(
-        session,
-        request,
-        "login-email",
-        payload.email,
-        maximum=10,
-        window_minutes=15,
-    )
-    user = await authenticate_account(session, payload.email, payload.password)
+    user = await create_guest_account(session)
     return _account_session(user)
 
 
@@ -205,8 +174,11 @@ async def current_account(
         raise HTTPException(status_code=404, detail="Accounts are not enabled for the local backend.")
     user = await session.get(User, user_id)
     if user is None:
-        raise HTTPException(status_code=401, detail="This account session is no longer valid. Sign in again.")
-    return AccountOut(id=user.id, email=user.email)
+        raise HTTPException(
+            status_code=401,
+            detail="This guest session is no longer valid. Continue as guest to start a new workspace.",
+        )
+    return AccountOut(id=user.id, email=None if user.is_guest else user.email, is_guest=user.is_guest)
 
 
 @api_router.get("/account/usage", response_model=AIUsageOut)

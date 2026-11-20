@@ -3,7 +3,12 @@ import asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.database.session import _migrate_account_ownership, _migrate_task_status, sqlite_file_from_url
+from app.database.session import (
+    _migrate_account_ownership,
+    _migrate_guest_account_flag,
+    _migrate_task_status,
+    sqlite_file_from_url,
+)
 from app.services.settings import clean_display_name
 import pytest
 
@@ -59,6 +64,28 @@ def test_existing_records_remain_unowned_during_account_migration():
                 )).one()
                 assert row.title == "keep me"
                 assert row.owner_id is None
+        await engine.dispose()
+
+    asyncio.run(verify_migration())
+
+
+def test_existing_users_get_non_guest_flag_without_losing_data():
+    async def verify_migration():
+        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        async with engine.begin() as connection:
+            await connection.execute(
+                text("CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT, password_hash TEXT)")
+            )
+            await connection.execute(
+                text("INSERT INTO users (id, email, password_hash) VALUES ('old', 'old@example.com', 'hash')")
+            )
+            await _migrate_guest_account_flag(connection)
+            row = (await connection.execute(
+                text("SELECT email, password_hash, is_guest FROM users WHERE id = 'old'")
+            )).one()
+            assert row.email == "old@example.com"
+            assert row.password_hash == "hash"
+            assert row.is_guest == 0
         await engine.dispose()
 
     asyncio.run(verify_migration())

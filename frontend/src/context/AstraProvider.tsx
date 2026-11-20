@@ -43,7 +43,7 @@ import type {
 function describe(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) {
-      return "Sign in to your ASTRA account or connect the local backend token.";
+      return "Guest access is required. Choose Continue as guest to create a private workspace.";
     }
     return error.message;
   }

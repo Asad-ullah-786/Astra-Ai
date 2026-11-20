@@ -102,9 +102,31 @@ async def init_database() -> None:
         if engine.dialect.name == "sqlite":
             await connection.execute(text("PRAGMA journal_mode=WAL"))
         await connection.run_sync(Base.metadata.create_all)
+        await _migrate_guest_account_flag(connection)
         await _migrate_account_ownership(connection)
         if engine.dialect.name == "sqlite":
             await _migrate_task_status(connection)
+
+
+async def _migrate_guest_account_flag(connection: AsyncConnection) -> None:
+    if connection.dialect.name == "sqlite":
+        columns = await connection.execute(text("PRAGMA table_info(users)"))
+        if not any(row._mapping["name"] == "is_guest" for row in columns):
+            await connection.execute(
+                text("ALTER TABLE users ADD COLUMN is_guest BOOLEAN NOT NULL DEFAULT 0")
+            )
+        return
+
+    columns = await connection.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = 'users'"
+        )
+    )
+    if not any(row._mapping["column_name"] == "is_guest" for row in columns):
+        await connection.execute(
+            text("ALTER TABLE users ADD COLUMN is_guest BOOLEAN NOT NULL DEFAULT false")
+        )
 
 
 async def _migrate_account_ownership(connection: AsyncConnection) -> None:

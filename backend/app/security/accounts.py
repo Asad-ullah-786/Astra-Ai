@@ -5,12 +5,10 @@ import ipaddress
 import json
 import secrets
 from datetime import datetime, timedelta, timezone
-from functools import lru_cache
 from uuid import uuid4
 
 from fastapi import HTTPException, Request
-from sqlalchemy import case, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import case
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,26 +35,10 @@ def _session_signing_key() -> bytes:
     return hmac.new(token.encode(), b"ASTRA account session signing", hashlib.sha256).digest()
 
 
-def _hash_password(password: str) -> str:
+def _hash_guest_credential(value: str) -> str:
     salt = secrets.token_bytes(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, PASSWORD_ITERATIONS)
+    digest = hashlib.pbkdf2_hmac("sha256", value.encode(), salt, PASSWORD_ITERATIONS)
     return f"pbkdf2_sha256${PASSWORD_ITERATIONS}${_b64encode(salt)}${_b64encode(digest)}"
-
-
-def _password_matches(password: str, encoded: str) -> bool:
-    try:
-        algorithm, rounds, salt, expected = encoded.split("$", maxsplit=3)
-        if algorithm != "pbkdf2_sha256" or int(rounds) != PASSWORD_ITERATIONS:
-            return False
-        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), _b64decode(salt), int(rounds))
-        return hmac.compare_digest(_b64encode(actual), expected)
-    except (ValueError, TypeError):
-        return False
-
-
-@lru_cache(maxsize=1)
-def _dummy_password_hash() -> str:
-    return _hash_password("invalid-account-password")
 
 
 def validate_session_signing_key() -> None:
@@ -150,36 +132,19 @@ async def require_identity(request: Request) -> str | None:
     scheme, _, credential = authorization.partition(" ")
     user_id = user_id_from_session_token(credential) if scheme.lower() == "bearer" else None
     if user_id is None:
-        raise HTTPException(status_code=401, detail="Sign in to your ASTRA account to continue.")
+        raise HTTPException(status_code=401, detail="Guest access is required. Continue as guest to create a private workspace.")
     return user_id
 
 
-async def register_account(session: AsyncSession, email: str, password: str) -> User:
-    normalized_email = email.strip().casefold()
-    existing = await session.scalar(select(User.id).where(User.email == normalized_email))
-    if existing is not None:
-        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+async def create_guest_account(session: AsyncSession) -> User:
+    user_id = str(uuid4())
     user = User(
-        id=str(uuid4()),
-        email=normalized_email,
-        password_hash=_hash_password(password),
+        id=user_id,
+        email=f"guest+{user_id}@guest.astra.invalid",
+        password_hash=_hash_guest_credential(secrets.token_urlsafe(32)),
+        is_guest=True,
     )
     session.add(user)
-    try:
-        await session.commit()
-    except IntegrityError as exc:
-        await session.rollback()
-        raise HTTPException(status_code=409, detail="An account with this email already exists.") from exc
+    await session.commit()
     await session.refresh(user)
-    return user
-
-
-async def authenticate_account(session: AsyncSession, email: str, password: str) -> User:
-    normalized_email = email.strip().casefold()
-    user = await session.scalar(select(User).where(User.email == normalized_email))
-    if user is None:
-        _password_matches(password, _dummy_password_hash())
-        raise HTTPException(status_code=401, detail="Email or password is incorrect.")
-    if not _password_matches(password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Email or password is incorrect.")
     return user

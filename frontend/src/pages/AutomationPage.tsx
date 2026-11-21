@@ -156,18 +156,45 @@ export function AutomationPage() {
           <p className="mb-2 text-sm text-white">
             {paired ? "WINDOWS COMPANION PAIRED FOR THIS TAB" : "PAIR THIS BROWSER WITH YOUR WINDOWS COMPANION"}
           </p>
-          <p className="mb-3 text-xs leading-5 text-astra-muted">
-            Run <code>install_companion.bat</code> once, then <code>start_companion.bat</code> on this PC. Enter the one-use code printed in its console.
-            Chrome or Edge will ask before ASTRA can connect to your local device.
-          </p>
-          <a
-            href="https://github.com/Asad-ullah-786/Astra-Ai/archive/refs/heads/main.zip"
-            target="_blank"
-            rel="noreferrer"
-            className="mb-3 inline-block text-xs text-astra-cyan underline"
-          >
-            DOWNLOAD COMPANION SOURCE (ZIP)
-          </a>
+          {!paired ? (
+            <>
+              <ol className="mb-3 grid gap-2 text-xs leading-5 text-astra-muted">
+                <li>
+                  <strong className="text-white">Download and extract ASTRA on this Windows PC.</strong>{" "}
+                  Use the source ZIP below and extract it to a folder you can find again.
+                </li>
+                <li>
+                  <strong className="text-white">Install the companion once.</strong>{" "}
+                  Open that folder and double-click <code>install_companion.bat</code>. Wait for it to finish.
+                  If you have already installed it, skip this step.
+                </li>
+                <li>
+                  <strong className="text-white">Start the companion.</strong>{" "}
+                  Double-click <code>start_companion.bat</code>. Keep its console window open; copy the fresh 8-character pairing code shown there.
+                </li>
+                <li>
+                  <strong className="text-white">Allow this browser to reach your PC.</strong>{" "}
+                  If Chrome or Edge asks for local-network access, choose <strong>Allow</strong>.
+                </li>
+                <li>
+                  <strong className="text-white">Pair this tab.</strong>{" "}
+                  Enter the code below and click <strong>PAIR DEVICE</strong>. The code expires after 5 minutes and can only be used once.
+                </li>
+              </ol>
+              <a
+                href="https://github.com/Asad-ullah-786/Astra-Ai/archive/refs/heads/main.zip"
+                target="_blank"
+                rel="noreferrer"
+                className="mb-3 inline-block text-xs text-astra-cyan underline"
+              >
+                DOWNLOAD ASTRA COMPANION (ZIP)
+              </a>
+            </>
+          ) : (
+            <p className="mb-3 text-xs leading-5 text-astra-muted">
+              This browser tab is paired with the Windows PC. Keep the companion running. Each app launch or website open still asks for approval on that PC.
+            </p>
+          )}
           {paired ? (
             <button
               type="button"

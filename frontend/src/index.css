@@ -1607,8 +1607,27 @@ textarea {
   gap: 0.28rem;
 }
 
+.quick-panel > .panel-content {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  touch-action: pan-y;
+}
+
+.quick-panel > .panel-content::-webkit-scrollbar {
+  display: none;
+}
+
 .quick-panel > div {
   margin-top: 0.25rem;
+}
+
+.quick-panel .panel-content > .quick-command {
+  flex: 0 0 auto;
 }
 
 .quick-command {

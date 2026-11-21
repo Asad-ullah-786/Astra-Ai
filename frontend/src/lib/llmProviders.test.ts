@@ -110,7 +110,7 @@ describe("LLM status catalog", () => {
     const cursor = cards.find((card) => card.id === "cursor");
     const copilot = cards.find((card) => card.id === "copilot");
 
-    expect(cards).toHaveLength(9);
+    expect(cards).toHaveLength(10);
     expect(mistral).toMatchObject({ status: "Available soon", state: "unavailable" });
     expect(qwen).toMatchObject({ status: "Selected · local", state: "connected" });
     expect(llama).toMatchObject({ status: "Available soon", state: "unavailable" });
@@ -118,6 +118,14 @@ describe("LLM status catalog", () => {
     expect(gemini).toMatchObject({ status: "Setup required", state: "setup" });
     expect(cursor).toMatchObject({ status: "Needs connection", state: "setup" });
     expect(copilot).toMatchObject({ name: "VS Code", status: "Needs connection", state: "setup" });
+    expect(cards.find((card) => card.id === "browser_agent"))
+      .toMatchObject({ name: "Browser Agent", status: "Chrome unavailable", state: "unavailable" });
+    const pairedClients = getLLMStatusCards(connectedAI, { browser_agent: true, chrome: true, cursor: true, copilot: true });
+    expect(pairedClients
+      .find((card) => card.id === "browser_agent"))
+      .toMatchObject({ status: "Ready · paired PC", state: "connected" });
+    expect(pairedClients.find((card) => card.id === "cursor"))
+      .toMatchObject({ status: "Ready to open · paired PC", state: "available" });
   });
 
   it("shows a clear installation state when Cursor or VS Code is not detected", () => {
@@ -145,9 +153,9 @@ describe("LLM status catalog", () => {
     expect(notPaired.find((card) => card.id === "copilot"))
       .toMatchObject({ name: "VS Code", status: "Needs connection", state: "setup" });
     expect(paired.find((card) => card.id === "cursor"))
-      .toMatchObject({ status: "Installed · needs connection", state: "setup" });
+      .toMatchObject({ status: "Ready to open · paired PC", state: "available" });
     expect(paired.find((card) => card.id === "copilot"))
-      .toMatchObject({ status: "Installed · needs connection", state: "setup" });
+      .toMatchObject({ status: "Ready to open · paired PC", state: "available" });
   });
 
   it("reports Gemini connection and selected-model state from the real API status", () => {

@@ -1,8 +1,6 @@
-import ctypes
 import ipaddress
 import re
 import secrets
-import sys
 import threading
 import time
 from urllib.parse import urlsplit
@@ -80,18 +78,6 @@ class DeviceBridge:
 
 
 device_bridge = DeviceBridge()
-
-
-def confirm_device_action(action: str, origin: str) -> bool:
-    if sys.platform != "win32":
-        return False
-    message = (
-        f"{origin} is requesting this one-time action:\n\n{action}\n\n"
-        "Allow only if you recognize this request."
-    )
-    flags = 0x00000004 | 0x00000030 | 0x00000100
-    result = ctypes.windll.user32.MessageBoxW(None, message, "ASTRA device permission", flags)
-    return result == 6
 
 
 def validate_public_url(url: str) -> str:

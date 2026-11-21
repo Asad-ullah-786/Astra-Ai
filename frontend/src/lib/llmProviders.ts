@@ -10,6 +10,7 @@ const LLM_STATUS_CATALOG = [
   { id: "phi", name: "Phi-3", kind: "model", matches: (name: string) => /phi-?3/i.test(name) },
   { id: "cursor", name: "Cursor", kind: "client" },
   { id: "copilot", name: "VS Code", kind: "client" },
+  { id: "browser_agent", name: "Browser Agent", kind: "client" },
 ] as const;
 
 const LOCAL_MODEL_OVERVIEW_CATALOG = [
@@ -186,13 +187,27 @@ export function getLLMStatusCards(
       if (aiStatus === null) {
         return { id: entry.id, name: entry.name, status: "Checking installation…", state: "checking" };
       }
+      if (entry.id === "browser_agent") {
+        if (localClientAvailability === null) {
+          return { id: entry.id, name: entry.name, status: "Needs connection", state: "setup" };
+        }
+        const available = localAvailabilityValue(localClientAvailability, aiStatus, entry.id);
+        return available
+          ? {
+              id: entry.id,
+              name: entry.name,
+              status: localClientAvailability === undefined ? "Ready · local PC" : "Ready · paired PC",
+              state: "connected",
+            }
+          : { id: entry.id, name: entry.name, status: "Chrome unavailable", state: "unavailable" };
+      }
       const clientId = entry.id.replace("-", "_");
       if (localClientAvailability === null) {
         return { id: entry.id, name: entry.name, status: "Needs connection", state: "setup" };
       }
       if (localClientAvailability !== undefined) {
         return localClientAvailability[clientId]
-          ? { id: entry.id, name: entry.name, status: "Installed · needs connection", state: "setup" }
+          ? { id: entry.id, name: entry.name, status: "Ready to open · paired PC", state: "available" }
           : { id: entry.id, name: entry.name, status: "Needs installation", state: "setup" };
       }
       return aiStatus.clients[clientId]
@@ -224,4 +239,16 @@ export function getLLMStatusCards(
 
     return fallbackProviderCard(entry);
   });
+}
+
+function localAvailabilityValue(
+  localClientAvailability: Record<string, boolean> | null | undefined,
+  aiStatus: AIStatus,
+  clientId: string,
+): boolean {
+  if (localClientAvailability) {
+    return Boolean(localClientAvailability.browser_agent && localClientAvailability.chrome);
+  }
+  if (localClientAvailability === null) return false;
+  return Boolean(aiStatus.clients[clientId]);
 }

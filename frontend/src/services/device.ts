@@ -1,5 +1,5 @@
 import type { LocalApplication } from "../types/index.ts";
-import type { SystemSnapshot } from "../types/index.ts";
+import type { CommandResult, InstalledModel, SystemSnapshot } from "../types/index.ts";
 
 const LOCAL_DEVICE_ORIGIN = "http://127.0.0.1:8787";
 const DEVICE_SESSION_KEY = "astra.localDeviceSession";
@@ -7,6 +7,16 @@ const DEVICE_SESSION_KEY = "astra.localDeviceSession";
 interface DevicePairResponse {
   access_token: string;
   expires_in: number;
+}
+
+interface DeviceAIStatus {
+  connected: boolean;
+  models: InstalledModel[];
+  error: string | null;
+}
+
+interface DeviceAIChatResponse {
+  reply: string;
 }
 
 interface DeviceActionResponse {
@@ -102,4 +112,32 @@ export function getLocalSystemSnapshot(): Promise<SystemSnapshot> {
 
 export function getLocalAIClients(): Promise<Record<string, boolean>> {
   return localRequest<Record<string, boolean>>("/api/v1/device/clients");
+}
+
+export function getLocalAIStatus(): Promise<DeviceAIStatus> {
+  return localRequest<DeviceAIStatus>("/api/v1/device/ai");
+}
+
+export function chatWithLocalAI(
+  model: string,
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+): Promise<DeviceAIChatResponse> {
+  return localRequest<DeviceAIChatResponse>("/api/v1/device/ai/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, messages }),
+  });
+}
+
+export function saveLocalAICommand(payload: {
+  text: string;
+  reply: string;
+  conversation_id: string | null;
+  model: string;
+}): Promise<CommandResult> {
+  return localRequest<CommandResult>("/api/v1/device/ai/conversation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }

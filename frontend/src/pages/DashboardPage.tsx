@@ -14,6 +14,7 @@ import {
   Database,
   Github,
   ExternalLink,
+  Globe,
   ListTodo,
   MessageSquare,
   MousePointer2,
@@ -68,6 +69,7 @@ const LLM_STATUS_ICONS = {
   phi: Cpu,
   cursor: MousePointer2,
   copilot: Bot,
+  browser_agent: Globe,
 } satisfies Record<string, LucideIcon>;
 
 function stateClass(status: string): string {
@@ -218,16 +220,31 @@ function QuickAction({
 }
 
 export function DashboardPage() {
-  const { health, stats, conversations, messages, activities, activityError, modules, aiStatus, localClientAvailability, state, tasks, memories } = useAstra();
+  const { health, stats, conversations, messages, activities, activityError, modules, aiStatus, localAIStatus, localSelectedModel, localClientAvailability, state, tasks, memories } = useAstra();
   const navigate = useNavigate();
+  const dashboardAIStatus = aiStatus
+    ? {
+        ...aiStatus,
+        connected: health?.cloud_deployment ? Boolean(localAIStatus?.connected) : aiStatus.connected,
+        models: health?.cloud_deployment ? localAIStatus?.models ?? [] : aiStatus.models,
+        selected_model: health?.cloud_deployment ? localSelectedModel : aiStatus.selected_model,
+      }
+    : null;
   const llmStatusCards = getLLMStatusCards(
     aiStatus,
-    health?.cloud_deployment ? localClientAvailability : undefined,
+    health?.cloud_deployment
+      ? localClientAvailability
+        ? {
+            ...localClientAvailability,
+            browser_agent: Boolean(localClientAvailability.browser_agent) && Boolean(localClientAvailability.chrome),
+          }
+        : null
+      : undefined,
   );
-  const localModelCards = getLocalModelOverviewCards(aiStatus);
+  const localModelCards = getLocalModelOverviewCards(dashboardAIStatus);
   const geminiConnected = Boolean(aiStatus?.gemini?.connected);
   const openaiConnected = Boolean(aiStatus?.openai?.connected);
-  const providerConnected = Boolean(aiStatus && (aiStatus.connected || geminiConnected || openaiConnected));
+  const providerConnected = Boolean(aiStatus && (aiStatus.connected || localAIStatus?.connected || geminiConnected || openaiConnected));
   const recentActivities = activities.slice(0, 6);
   const [workingAction, setWorkingAction] = useState("");
   const [actionError, setActionError] = useState("");
@@ -302,7 +319,7 @@ export function DashboardPage() {
                     <Icon className="size-4" />
                   </span>
                   <span className="ai-model-copy">
-                    <strong>{health?.cloud_deployment && card.id === "ollama" ? "Hosted Ollama" : card.name}</strong>
+                    <strong>{health?.cloud_deployment && card.id === "ollama" ? "This PC · Ollama" : card.name}</strong>
                     <small>{card.status}</small>
                   </span>
                   <i className={`status-light ${card.state === "connected" || card.state === "available" ? "is-green" : ""}`} />
@@ -372,6 +389,18 @@ export function DashboardPage() {
           <div className="agent-grid">
             {AGENT_MODULES.map((agent) => {
               const module = modules.find((item) => item.id === agent.id);
+              if (module && agent.id === "automation" && localClientAvailability?.browser_agent) {
+                return (
+                  <AgentTile
+                    key={agent.id}
+                    module={{
+                      ...module,
+                      status: "online",
+                      summary: "Paired Windows PC is ready to open allowlisted apps and websites. This is not remote browser control.",
+                    }}
+                  />
+                );
+              }
               return module ? <AgentTile key={agent.id} module={module} /> : null;
             })}
           </div>
@@ -504,6 +533,10 @@ export function DashboardPage() {
                     if (isAgentCard) {
                       setAgentActionMessage("");
                       setAgentSetup(card.id as "cursor" | "copilot");
+                      return;
+                    }
+                    if (card.id === "browser_agent") {
+                      navigate("/automation");
                       return;
                     }
                     const provider = card.id === "mistral"

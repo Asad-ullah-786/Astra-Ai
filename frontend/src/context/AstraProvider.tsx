@@ -21,7 +21,14 @@ import {
   updateTask as patchTask,
   updateMemory as patchMemory,
 } from "../services/api.ts";
-import { getLocalAIClients, getLocalSystemSnapshot, hasLocalDeviceSession } from "../services/device.ts";
+import {
+  chatWithLocalAI,
+  getLocalAIClients,
+  getLocalAIStatus,
+  getLocalSystemSnapshot,
+  hasLocalDeviceSession,
+  saveLocalAICommand,
+} from "../services/device.ts";
 import type {
   AIStatus,
   ActivityItem,
@@ -31,7 +38,6 @@ import type {
   CommandSendOptions,
   ConversationDetail,
   ConversationSummary,
-  DeviceIntent,
   HealthResponse,
   ModuleInfo,
   MemoryInput,
@@ -61,6 +67,8 @@ export function AstraProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [aiStatus, setAIStatus] = useState<AIStatus | null>(null);
   const [localClientAvailability, setLocalClientAvailability] = useState<Record<string, boolean> | null>(null);
+  const [localAIStatus, setLocalAIStatus] = useState<Awaited<ReturnType<typeof getLocalAIStatus>> | null>(null);
+  const [localSelectedModel, setLocalSelectedModel] = useState(() => sessionStorage.getItem("astra.localAIModel"));
   const [online, setOnline] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
@@ -74,7 +82,6 @@ export function AstraProvider({ children }: { children: ReactNode }) {
   const [memories, setMemories] = useState<PersonalMemory[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [pendingDeviceAction, setPendingDeviceAction] = useState<DeviceIntent | null>(null);
   const [settings, setSettings] = useState<SettingsPayload | null>(null);
   const [tokenVersion, setTokenVersion] = useState(0);
   const activeIdRef = useRef<string | null>(null);
@@ -123,8 +130,13 @@ export function AstraProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshAI = useCallback(async () => {
-    setAIStatus(await getAIStatus());
-  }, []);
+    const [nextAIStatus, deviceAI] = await Promise.all([
+      getAIStatus(),
+      health?.cloud_deployment && hasLocalDeviceSession() ? getLocalAIStatus() : Promise.resolve(null),
+    ]);
+    setAIStatus(nextAIStatus);
+    setLocalAIStatus(deviceAI);
+  }, [health?.cloud_deployment]);
 
   useEffect(() => {
     let stopped = false;
@@ -145,18 +157,21 @@ export function AstraProvider({ children }: { children: ReactNode }) {
         try {
           if (nextHealth.cloud_deployment) {
             if (hasLocalDeviceSession()) {
-              const [localStats, localClients] = await Promise.all([
+              const [localStats, localClients, deviceAI] = await Promise.all([
                 getLocalSystemSnapshot(),
                 getLocalAIClients(),
+                getLocalAIStatus(),
               ]);
               if (!stopped) {
                 setStats(localStats);
                 setLocalClientAvailability(localClients);
+                setLocalAIStatus(deviceAI);
               }
             } else {
               if (!stopped) {
                 setStats(null);
                 setLocalClientAvailability(null);
+                setLocalAIStatus(null);
               }
             }
           } else {
@@ -164,6 +179,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
             if (!stopped) {
               setStats(nextStats);
               setLocalClientAvailability(null);
+              setLocalAIStatus(null);
             }
           }
           if (!stopped) setConnectionError(null);
@@ -171,6 +187,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
           if (!stopped) {
             setStats(null);
             setLocalClientAvailability(null);
+            setLocalAIStatus(null);
             setConnectionError(
               nextHealth.cloud_deployment
                 ? "Start and pair the local ASTRA companion to view this device's CPU, RAM, and disk."
@@ -206,7 +223,11 @@ export function AstraProvider({ children }: { children: ReactNode }) {
     let stopped = false;
     const updateAIStatus = async () => {
       try {
-        const nextAIStatus = await getAIStatus();
+        const [nextAIStatus, deviceAI] = await Promise.all([
+          getAIStatus(),
+          health?.cloud_deployment && hasLocalDeviceSession() ? getLocalAIStatus() : Promise.resolve(null),
+        ]);
+        if (!stopped) setLocalAIStatus(deviceAI);
         if (!stopped) setAIStatus(nextAIStatus);
       } catch (error) {
         if (!stopped) setConnectionError(describe(error));
@@ -217,7 +238,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       stopped = true;
       window.clearInterval(id);
     };
-  }, [tokenVersion]);
+  }, [health?.cloud_deployment, tokenVersion]);
 
   useEffect(() => {
     let stopped = false;
@@ -302,10 +323,6 @@ export function AstraProvider({ children }: { children: ReactNode }) {
 
   const send = useCallback(
     async (text: string, options?: CommandSendOptions) => {
-      if (pendingDeviceAction) {
-        setCommandError("Confirm or cancel the pending device action before sending another command.");
-        return null;
-      }
       const cleaned = text.trim();
       if (!cleaned) {
         setCommandError("Enter a command before sending.");
@@ -327,17 +344,49 @@ export function AstraProvider({ children }: { children: ReactNode }) {
             content: cleaned,
             created_at: createdAt,
           };
+          setMessages((current) => [...current, userMessage]);
+          const result = deviceIntent.action === "launch_app"
+            ? await launchLocalApplication(deviceIntent.application)
+            : await openLocalUrl(deviceIntent.url);
           const assistantMessage: ChatMessage = {
             id: `device-assistant-${Date.now()}`,
             role: "assistant",
-            content: `${deviceIntent.label} is ready. Confirm below; Windows will ask you once more before it runs.`,
-            created_at: createdAt,
+            content: result.message,
+            created_at: new Date().toISOString(),
           };
-          setMessages((current) => [...current, userMessage, assistantMessage]);
-          setPendingDeviceAction(deviceIntent);
+          setMessages((current) => [...current, assistantMessage]);
           setState("completed");
           idleTimer.current = window.setTimeout(() => setState("idle"), 1600);
           return assistantMessage;
+        }
+
+        if (health?.cloud_deployment && hasLocalDeviceSession() && localSelectedModel && localAIStatus?.connected) {
+          const conversationHistory = [...messages, {
+            id: `local-user-${Date.now()}`,
+            role: "user",
+            content: cleaned,
+            created_at: new Date().toISOString(),
+          }];
+          const result = await chatWithLocalAI(
+            localSelectedModel,
+            conversationHistory
+              .filter((message) => message.role === "user" || message.role === "assistant")
+              .slice(-40)
+              .map((message) => ({ role: message.role as "user" | "assistant", content: message.content })),
+          );
+          const saved = await saveLocalAICommand({
+            text: cleaned,
+            reply: result.reply,
+            conversation_id: activeIdRef.current,
+            model: localSelectedModel,
+          });
+          activeIdRef.current = saved.conversation_id;
+          setActiveConversationId(saved.conversation_id);
+          setMessages((current) => [...current, saved.user_message, saved.assistant_message]);
+          setState("completed");
+          await refresh();
+          idleTimer.current = window.setTimeout(() => setState("idle"), 1600);
+          return saved.assistant_message;
         }
 
         const streamingId = `stream-${Date.now()}`;
@@ -398,55 +447,12 @@ export function AstraProvider({ children }: { children: ReactNode }) {
         return null;
       }
     },
-    [pendingDeviceAction, refresh],
+    [health, localAIStatus, localSelectedModel, messages, refresh],
   );
-
-  const approveDeviceAction = useCallback(async () => {
-    const action = pendingDeviceAction;
-    if (!action) return;
-    setCommandError(null);
-    if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
-    setState("processing");
-    try {
-      const result = action.action === "launch_app"
-        ? await launchLocalApplication(action.application)
-        : await openLocalUrl(action.url);
-      const reply: ChatMessage = {
-        id: `device-result-${Date.now()}`,
-        role: "assistant",
-        content: result.message,
-        created_at: new Date().toISOString(),
-      };
-      setMessages((current) => [...current, reply]);
-      setState("completed");
-      idleTimer.current = window.setTimeout(() => setState("idle"), 1600);
-    } catch (error) {
-      setCommandError(describe(error));
-      setState("error");
-    } finally {
-      setPendingDeviceAction(null);
-    }
-  }, [pendingDeviceAction]);
-
-  const cancelDeviceAction = useCallback(() => {
-    if (!pendingDeviceAction) return;
-    setPendingDeviceAction(null);
-    setMessages((current) => [
-      ...current,
-      {
-        id: `device-cancelled-${Date.now()}`,
-        role: "assistant",
-        content: "Cancelled. ASTRA did not send the action to your device.",
-        created_at: new Date().toISOString(),
-      },
-    ]);
-    setState("idle");
-  }, [pendingDeviceAction]);
 
   const openConversation = useCallback(
     async (id: string) => {
       setCommandError(null);
-      setPendingDeviceAction(null);
       await loadConversation(id);
     },
     [loadConversation],
@@ -459,7 +465,6 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       setActiveConversationId(null);
       setMessages([]);
       setCommandError(null);
-      setPendingDeviceAction(null);
     }
     await refresh();
   }, [refresh]);
@@ -469,7 +474,6 @@ export function AstraProvider({ children }: { children: ReactNode }) {
     setActiveConversationId(null);
     setMessages([]);
     setCommandError(null);
-    setPendingDeviceAction(null);
     setState("idle");
   }, []);
 
@@ -487,11 +491,18 @@ export function AstraProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const selectAIModel = useCallback(async (model: string) => {
+    if (health?.cloud_deployment && localAIStatus?.models.some((item) => item.name === model)) {
+      sessionStorage.setItem("astra.localAIModel", model);
+      setLocalSelectedModel(model);
+      return;
+    }
     setAIStatus(await saveAIModel(model));
     await refresh();
-  }, [refresh]);
+  }, [health?.cloud_deployment, localAIStatus, refresh]);
 
   const clearAIModel = useCallback(async () => {
+    sessionStorage.removeItem("astra.localAIModel");
+    setLocalSelectedModel(null);
     setAIStatus(await clearSelectedAIModel());
     await refresh();
   }, [refresh]);
@@ -535,6 +546,8 @@ export function AstraProvider({ children }: { children: ReactNode }) {
     () => ({
       health,
       aiStatus,
+      localAIStatus,
+      localSelectedModel,
       localClientAvailability,
       online,
       connectionError,
@@ -550,7 +563,6 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       activeConversationId,
       messages,
       settings,
-      pendingDeviceAction,
       refresh,
       refreshTasks,
       createTask: createTaskItem,
@@ -563,8 +575,6 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       selectAIModel,
       clearAIModel,
       sendCommand: send,
-      approveDeviceAction,
-      cancelDeviceAction,
       openConversation,
       deleteConversation,
       startNewConversation,
@@ -575,6 +585,8 @@ export function AstraProvider({ children }: { children: ReactNode }) {
     [
       health,
       aiStatus,
+      localAIStatus,
+      localSelectedModel,
       localClientAvailability,
       online,
       connectionError,
@@ -602,9 +614,6 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       selectAIModel,
       clearAIModel,
       send,
-      pendingDeviceAction,
-      approveDeviceAction,
-      cancelDeviceAction,
       openConversation,
       deleteConversation,
       startNewConversation,

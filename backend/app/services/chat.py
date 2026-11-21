@@ -169,6 +169,68 @@ async def handle_command(
     return conversation, user_message, assistant_message
 
 
+async def save_device_command(
+    session: AsyncSession,
+    text: str,
+    reply: str,
+    conversation_id: str | None,
+    model: str,
+    owner_id: str | None = None,
+) -> tuple[Conversation, ChatMessage, ChatMessage]:
+    cleaned = " ".join(text.split())
+    cleaned_reply = reply.strip()
+    if not cleaned or len(cleaned) > 4000:
+        raise ValueError("Command text must contain 1 to 4000 characters.")
+    if not cleaned_reply or len(cleaned_reply) > 16000:
+        raise ValueError("The local AI reply must contain 1 to 16000 characters.")
+    if conversation_id:
+        conversation = await get_conversation(session, conversation_id, owner_id)
+        if conversation is None:
+            raise LookupError("Conversation not found.")
+    else:
+        conversation = Conversation(
+            id=str(uuid4()),
+            owner_id=owner_id,
+            title=_title_from(cleaned),
+            created_at=utcnow(),
+            updated_at=utcnow(),
+        )
+        session.add(conversation)
+        await session.flush()
+
+    user_message = ChatMessage(
+        id=str(uuid4()),
+        owner_id=owner_id,
+        conversation_id=conversation.id,
+        role="user",
+        content=cleaned,
+        created_at=utcnow(),
+    )
+    assistant_message = ChatMessage(
+        id=str(uuid4()),
+        owner_id=owner_id,
+        conversation_id=conversation.id,
+        role="assistant",
+        content=cleaned_reply,
+        created_at=utcnow(),
+    )
+    conversation.updated_at = utcnow()
+    session.add_all([user_message, assistant_message])
+    await record_activity(
+        "info",
+        "chat",
+        f"Completed a local Ollama response using {model}",
+        details=conversation.id,
+        session=session,
+        owner_id=owner_id,
+    )
+    await session.commit()
+    await session.refresh(conversation)
+    await session.refresh(user_message)
+    await session.refresh(assistant_message)
+    return conversation, user_message, assistant_message
+
+
 async def prepare_stream_command(
     session: AsyncSession,
     text: str,

@@ -203,6 +203,8 @@ export type DeviceIntent =
 export interface AstraContextValue {
   health: HealthResponse | null;
   aiStatus: AIStatus | null;
+  localAIStatus: { connected: boolean; models: InstalledModel[]; error: string | null } | null;
+  localSelectedModel: string | null;
   localClientAvailability: Record<string, boolean> | null;
   online: boolean;
   connectionError: string | null;
@@ -218,7 +220,6 @@ export interface AstraContextValue {
   activeConversationId: string | null;
   messages: ChatMessage[];
   settings: SettingsPayload | null;
-  pendingDeviceAction: DeviceIntent | null;
   refresh: () => Promise<void>;
   refreshTasks: () => Promise<void>;
   createTask: (task: TaskCreateInput) => Promise<void>;
@@ -231,8 +232,6 @@ export interface AstraContextValue {
   selectAIModel: (model: string) => Promise<void>;
   clearAIModel: () => Promise<void>;
   sendCommand: (text: string, options?: CommandSendOptions) => Promise<ChatMessage | null>;
-  approveDeviceAction: () => Promise<void>;
-  cancelDeviceAction: () => void;
   openConversation: (id: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   startNewConversation: () => void;

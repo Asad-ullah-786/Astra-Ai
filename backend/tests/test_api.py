@@ -219,7 +219,7 @@ def test_vercel_rejects_sqlite_storage():
 
 
 def test_ai_client_availability_only_reports_installed_commands(monkeypatch):
-    installed = {"cursor", "copilot"}
+    installed = {"chrome", "cursor", "copilot"}
     monkeypatch.setattr(
         "app.services.ai_clients.shutil.which",
         lambda command: command if command in installed else None,
@@ -229,6 +229,7 @@ def test_ai_client_availability_only_reports_installed_commands(monkeypatch):
         "claude_code": False,
         "cursor": True,
         "copilot": True,
+        "browser_agent": True,
     }
 
 
@@ -437,7 +438,6 @@ def test_allowlisted_automation_launch(client, monkeypatch):
         return f"Opened {application}."
 
     monkeypatch.setattr("app.services.automation.launch_application", fake_launch)
-    monkeypatch.setattr("app.api.router.confirm_device_action", lambda action, origin: True)
     monkeypatch.setattr("app.api.router.open_approved_url", lambda url: f"Opened {url} in your default browser.")
     from app.services.device_bridge import device_bridge
 
@@ -469,6 +469,13 @@ def test_allowlisted_automation_launch(client, monkeypatch):
     )
     assert response.status_code == 200
     assert response.json() == {"application": "chrome", "message": "Opened chrome."}
+    repeated_launch = client.post(
+        "/api/v1/device/action",
+        json={"action": "launch_app", "application": "code"},
+        headers=device_headers,
+    )
+    assert repeated_launch.status_code == 200
+    assert repeated_launch.json() == {"action": "launch_app", "message": "Opened code."}
     website = client.post(
         "/api/v1/device/action",
         json={"action": "open_url", "url": "https://example.com"},
@@ -494,14 +501,7 @@ def test_allowlisted_automation_launch(client, monkeypatch):
         headers={**device_headers, "origin": "https://evil.example"},
     )
     assert denied.status_code == 403
-    monkeypatch.setattr("app.api.router.confirm_device_action", lambda action, origin: False)
-    declined = client.post(
-        "/api/v1/device/action",
-        json={"action": "launch_app", "application": "chrome"},
-        headers=device_headers,
-    )
-    assert declined.status_code == 403
-    assert launched == ["chrome"]
+    assert launched == ["chrome", "code"]
     client.delete("/api/v1/device/session", headers=device_headers)
     assert client.post(
         "/api/v1/device/action",
@@ -518,6 +518,50 @@ def test_allowlisted_automation_launch(client, monkeypatch):
         json={"pairing_code": pairing_code},
         headers={"origin": origin},
     ).status_code == 401
+
+
+def test_paired_companion_exposes_local_ollama_models_and_chat(client, monkeypatch):
+    from app.ai.provider import InstalledModel, OllamaProvider
+    from app.services.device_bridge import device_bridge
+
+    installed = [InstalledModel("qwen2.5:1.5b", 986_000_000, "1.5B", None)]
+
+    class FakeOllama:
+        async def list_models(self):
+            return installed
+
+    async def complete(self, messages):
+        assert messages == [{"role": "user", "content": "Hello"}]
+        return "Local Ollama reply."
+
+    monkeypatch.setattr("app.api.router.get_language_model", lambda: FakeOllama())
+    monkeypatch.setattr(OllamaProvider, "list_models", FakeOllama.list_models)
+    monkeypatch.setattr(OllamaProvider, "complete", complete)
+
+    origin = "http://127.0.0.1:5173"
+    pair_response = client.post(
+        "/api/v1/device/pair",
+        json={"pairing_code": device_bridge.start()},
+        headers={"origin": origin},
+    )
+    assert pair_response.status_code == 200
+    headers = {
+        "origin": origin,
+        "x-astra-device-session": pair_response.json()["access_token"],
+    }
+
+    status = client.get("/api/v1/device/ai", headers=headers)
+    assert status.status_code == 200
+    assert status.json()["connected"] is True
+    assert status.json()["models"][0]["name"] == "qwen2.5:1.5b"
+
+    response = client.post(
+        "/api/v1/device/ai/chat",
+        json={"model": "qwen2.5:1.5b", "messages": [{"role": "user", "content": "Hello"}]},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json() == {"reply": "Local Ollama reply."}
     device_bridge.stop()
 
 

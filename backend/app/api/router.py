@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from app.ai.provider import AIProviderError, GeminiProvider, InstalledModel, OpenAIProvider, get_language_model
+from app.ai.provider import AIProviderError, GeminiProvider, InstalledModel, OllamaProvider, OpenAIProvider, get_language_model
 from app.api.schemas import (
     AIStatusOut,
     AccountOut,
@@ -22,6 +22,7 @@ from app.api.schemas import (
     ConversationOut,
     ConversationSummary,
     DeviceActionIn,
+    DeviceAIChatIn,
     DevicePairIn,
     DevicePairOut,
     HealthResponse,
@@ -33,6 +34,7 @@ from app.api.schemas import (
     MessageOut,
     ModuleInfo,
     ModelSelectionIn,
+    LocalCommandResultIn,
     ResearchSearchIn,
     ResearchSearchOut,
     ResearchResultOut,
@@ -59,7 +61,6 @@ from app.security.accounts import (
 )
 from app.services.activity import list_activity, record_activity
 from app.services.device_bridge import (
-    confirm_device_action,
     device_bridge,
     open_approved_url,
     validate_public_url,
@@ -79,6 +80,7 @@ from app.services.chat import (
     list_conversations,
     prepare_stream_command,
     save_streamed_reply,
+    save_device_command,
 )
 from app.services.settings import (
     clear_ai_model,
@@ -310,9 +312,9 @@ async def modules(
         else "offline"
     )
     automation_module["summary"] = (
-        "Pair the optional Windows companion to open approved apps or public websites. Every action requires an on-device confirmation."
+        "Pair the optional Windows companion to open allowlisted apps or public websites directly for up to 12 hours."
         if settings.is_vercel_deployment
-        else f"Safe, allowlisted Windows launch actions available: {', '.join(apps)}. Every action requires an on-device confirmation."
+        else f"Allowlisted Windows launch actions available: {', '.join(apps)}. Pair once to open them directly for up to 12 hours."
         if apps
         else "Windows app launch controls are available only on Windows."
     )
@@ -349,20 +351,15 @@ def _require_local_device_request(request: Request) -> str:
 
 async def _run_local_device_action(
     request: Request,
-    title: str,
     application: str | None = None,
     url: str | None = None,
 ) -> str:
-    origin = _require_local_device_request(request)
+    _require_local_device_request(request)
     if url is not None:
         try:
             url = validate_public_url(url)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        title = f"Open this website in your browser:\n{url}"
-    approved = await run_in_threadpool(confirm_device_action, title, origin)
-    if not approved:
-        raise HTTPException(status_code=403, detail="The action was not approved on this computer.")
     try:
         if application is not None:
             from app.services.automation import launch_application
@@ -391,6 +388,72 @@ async def local_device_clients(request: Request) -> dict[str, bool]:
         raise HTTPException(status_code=404, detail="Device app status is available only through the local companion.")
     _require_local_device_request(request)
     return available_ai_clients()
+
+
+@api_router.get("/device/ai")
+async def local_device_ai(request: Request) -> dict[str, object]:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="Local AI status is available only through the Windows companion.")
+    _require_local_device_request(request)
+    try:
+        models = await get_language_model().list_models()
+    except AIProviderError as exc:
+        return {"connected": False, "models": [], "error": str(exc)}
+    return {
+        "connected": True,
+        "models": [_installed_model(model).model_dump() for model in models],
+        "error": None,
+    }
+
+
+@api_router.post("/device/ai/chat")
+async def local_device_ai_chat(payload: DeviceAIChatIn, request: Request) -> dict[str, str]:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="Local AI chat is available only through the Windows companion.")
+    _require_local_device_request(request)
+    try:
+        provider = OllamaProvider(payload.model)
+        installed = await provider.list_models()
+        if not any(model.name == payload.model for model in installed):
+            raise HTTPException(status_code=422, detail="Choose a model installed in Ollama on this PC.")
+        reply = await provider.complete([message.model_dump() for message in payload.messages])
+    except AIProviderError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"reply": reply}
+
+
+@api_router.post("/device/ai/conversation", response_model=CommandOut)
+async def local_device_ai_conversation(
+    payload: LocalCommandResultIn,
+    request: Request,
+    user_id: str | None = Depends(require_identity),
+    session: AsyncSession = Depends(get_session),
+) -> CommandOut:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="Local AI conversations must be saved through the hosted backend.")
+    _require_local_device_request(request)
+    if not payload.model or len(payload.model) > 120:
+        raise HTTPException(status_code=422, detail="Choose a valid local Ollama model.")
+    try:
+        conversation, user_message, assistant_message = await save_device_command(
+            session,
+            payload.text,
+            payload.reply,
+            payload.conversation_id,
+            payload.model,
+            user_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return CommandOut(
+        conversation_id=conversation.id,
+        user_message=MessageOut.model_validate(user_message),
+        assistant_message=MessageOut.model_validate(assistant_message),
+        state="completed",
+        model=f"ollama:{payload.model}",
+    )
 
 
 @api_router.post("/device/pair", response_model=DevicePairOut)
@@ -428,10 +491,9 @@ async def run_local_device_action(
     request: Request,
 ) -> dict[str, str]:
     if payload.action == "launch_app" and payload.application is not None:
-        title = f"Open {APPLICATION_LABELS[payload.application]}."
-        message = await _run_local_device_action(request, title, application=payload.application)
+        message = await _run_local_device_action(request, application=payload.application)
     elif payload.action == "open_url" and payload.url is not None:
-        message = await _run_local_device_action(request, "", url=payload.url)
+        message = await _run_local_device_action(request, url=payload.url)
     else:
         raise HTTPException(status_code=422, detail="Choose one supported device action.")
     return {"action": payload.action, "message": message}
@@ -444,7 +506,6 @@ async def automation_launch(
 ) -> AutomationLaunchOut:
     message = await _run_local_device_action(
         request,
-        f"Open {APPLICATION_LABELS[payload.application]}.",
         application=payload.application,
     )
     return AutomationLaunchOut(application=payload.application, message=message)

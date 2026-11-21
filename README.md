@@ -57,18 +57,27 @@ The hosted backend persists guest-scoped chats, tasks, approved memories, settin
 
 ### Optional Windows companion
 
-A website cannot access Windows apps or files by itself. To let the hosted site request local actions, the visitor must download the repository, run `install_companion.bat` once, then `start_companion.bat`. The launcher gives the companion a separate local SQLite database and allows the ASTRA production origin without changing `backend/.env` or using its configured cloud database. The local API binds to `127.0.0.1`; its console prints a one-use pairing code that expires after five minutes. Pairing is tab-scoped, lasts up to 12 hours, and can be revoked in ASTRA. Chrome or Edge also asks for local-network access. Every supported action requires a confirmation dialog on Windows, and ASTRA never runs arbitrary shell commands.
+A website cannot access Windows apps or files by itself. To let the hosted site request local actions, the visitor must download the repository, run `install_companion.bat` once, then `start_companion.bat`. The launcher gives the companion a separate local SQLite database and allows the ASTRA production origin without changing `backend/.env` or using its configured cloud database. The local API binds to `127.0.0.1`; its console prints a one-use pairing code that expires after five minutes. Pairing is tab-scoped, authorizes direct opening of allowlisted apps and public HTTP(S) websites for up to 12 hours, and can be revoked in ASTRA. Chrome or Edge may ask for local-network access on first use. ASTRA never runs arbitrary shell commands.
 
 The current companion actions are deliberately limited to opening allowlisted apps (VS Code, Cursor, Chrome, and Windows Settings) and public HTTP(S) websites. Chat and Voice recognize only direct, explicit open-app/open-website requests. Screen capture, microphone use, and local camera preview use browser permission prompts; the camera preview is not uploaded. A visitor may select a plain-text file up to 100 KB and explicitly confirm sending it to the conversation. Folder-wide access, arbitrary webpage clicking, keyboard/mouse control, camera uploads to AI, and changing Windows system settings are not implemented; opening the website does not grant those capabilities.
 
 ### VS Code Copilot and Cursor
 
-The hosted website can request that the paired Windows companion open VS Code or Cursor after the user approves the Windows confirmation dialog. It does not currently link website chat to Copilot Agent or Cursor Agent, and it cannot detect editor extensions installed on a visitor's computer.
+Pair the Windows companion once from ASTRA's Automation page; Quick Commands and explicit chat requests can then open VS Code or Cursor directly for the 12-hour pairing session. ASTRA does not install editor extensions or control Copilot Agent or Cursor Agent: those agents and their workspace permissions remain inside their own editors.
 
 - **VS Code:** install VS Code and the GitHub Copilot Chat extension, sign in to a GitHub account with Copilot access, open Copilot Chat, and choose Agent mode. Pair the Windows companion in ASTRA's Automation page before using the website's Open VS Code action.
 - **Cursor:** install Cursor, sign in, open a project folder, and choose Agent. Pair the Windows companion in ASTRA's Automation page before using the website's Open Cursor action.
 
 Agent permissions and conversations remain inside the editor. The ASTRA website does not receive or control them.
+
+### Use Ollama already installed on the paired PC
+
+1. Make sure Ollama is running and `ollama list` shows your downloaded models.
+2. Start the ASTRA Windows companion with `start_companion.bat`, then pair the website tab once from **Automation → Pair this browser**.
+3. In **Settings → Ollama**, press **Check connection** and select one of the models already on your PC.
+4. Open **AI Chat** and send a message. The browser sends the prompt to Ollama through the paired local companion; the hosted backend stores the resulting conversation.
+
+This connection does not expose Ollama to the public internet. If the companion stops, restart it and pair the browser again. Browser local-network permission may be requested by Chrome or Edge on first connection. Screen sharing, microphone, and camera still use browser-managed permission prompts.
 
 ## Local AI setup
 

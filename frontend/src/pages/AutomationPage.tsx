@@ -13,7 +13,7 @@ const APPLICATIONS = [
 ] as const;
 
 export function AutomationPage() {
-  const { sendCommand, pendingDeviceAction } = useAstra();
+  const { sendCommand } = useAstra();
   const [working, setWorking] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -150,7 +150,7 @@ export function AutomationPage() {
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
       <Panel title="SAFE WINDOWS QUICK COMMANDS">
         <p className="mb-3 text-sm text-astra-muted">
-          Device actions require a paired Windows companion. Each action also opens a Windows approval dialog; ASTRA only launches approved apps and never runs arbitrary shell commands.
+          Pair once to open allowlisted apps and public websites directly for up to 12 hours. Disconnect this device to revoke access early. ASTRA never runs arbitrary shell commands.
         </p>
         <div className="mb-4 rounded-xl border border-astra-cyan/20 bg-black/20 p-3">
           <p className="mb-2 text-sm text-white">
@@ -178,7 +178,7 @@ export function AutomationPage() {
                 </li>
                 <li>
                   <strong className="text-white">Pair this tab.</strong>{" "}
-                  Enter the code below and click <strong>PAIR DEVICE</strong>. The code expires after 5 minutes and can only be used once.
+                  Enter the code below and click <strong>PAIR DEVICE</strong>. This authorizes direct opens of allowlisted apps and public websites on this PC until you disconnect or the 12-hour session expires. The code expires after 5 minutes and can only be used once.
                 </li>
               </ol>
               <a
@@ -192,7 +192,7 @@ export function AutomationPage() {
             </>
           ) : (
             <p className="mb-3 text-xs leading-5 text-astra-muted">
-              This browser tab is paired with the Windows PC. Keep the companion running. Each app launch or website open still asks for approval on that PC.
+              This browser tab is paired with the Windows PC. Allowlisted apps and public websites open directly without another Windows prompt. Disconnect this device to revoke access; the session also expires after 12 hours.
             </p>
           )}
           {paired ? (
@@ -303,13 +303,13 @@ export function AutomationPage() {
               ref={fileInputRef}
               type="file"
               accept=".txt,.md,.csv,.json,.log,text/plain,text/csv,application/json"
-              disabled={Boolean(working) || Boolean(pendingDeviceAction)}
+              disabled={Boolean(working)}
               onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
               className="mt-2 block w-full text-xs text-astra-muted file:mr-2 file:rounded-md file:border-0 file:bg-astra-blue file:px-3 file:py-2 file:text-white"
             />
             <button
               type="button"
-              disabled={!selectedFile || Boolean(working) || Boolean(pendingDeviceAction)}
+              disabled={!selectedFile || Boolean(working)}
               onClick={() => void sendSelectedFile()}
               className="mt-2 rounded-lg border border-astra-cyan/40 px-3 py-2 text-xs text-astra-cyan disabled:opacity-50"
             >

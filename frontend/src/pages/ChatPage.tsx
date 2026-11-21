@@ -1,7 +1,6 @@
 import { Brain, MessageSquarePlus, Settings2 } from "lucide-react";
 import { NavLink } from "react-router";
 import { CommandBar } from "../components/CommandBar.tsx";
-import { DeviceActionApproval } from "../components/DeviceActionApproval.tsx";
 import { ConversationPanel } from "../components/ConversationPanel.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
 
@@ -15,9 +14,6 @@ export function ChatPage() {
     state,
     sendCommand,
     startNewConversation,
-    pendingDeviceAction,
-    approveDeviceAction,
-    cancelDeviceAction,
   } = useAstra();
   const geminiStatus = aiStatus?.gemini;
   const openaiStatus = aiStatus?.openai;
@@ -120,13 +116,8 @@ export function ChatPage() {
           isThinking={state === "processing" || state === "thinking"}
           className="min-h-[15rem] flex-1 space-y-3 overflow-y-auto pr-1"
         />
-        <DeviceActionApproval
-          action={pendingDeviceAction}
-          onApprove={approveDeviceAction}
-          onCancel={cancelDeviceAction}
-        />
         <div className="mt-4 border-t border-white/10 pt-3">
-          <CommandBar disabled={busy || Boolean(pendingDeviceAction)} onSubmit={sendCommand} />
+          <CommandBar disabled={busy} onSubmit={sendCommand} />
         </div>
         {commandError ? (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-astra-danger" role="alert">

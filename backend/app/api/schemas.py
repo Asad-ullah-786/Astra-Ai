@@ -331,6 +331,23 @@ class DeviceActionIn(BaseModel):
         return self
 
 
+class DeviceAIMessageIn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class DeviceAIChatIn(BaseModel):
+    model: str = Field(min_length=1, max_length=120)
+    messages: list[DeviceAIMessageIn] = Field(min_length=1, max_length=40)
+
+
+class LocalCommandResultIn(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+    reply: str = Field(min_length=1, max_length=16000)
+    conversation_id: str | None = None
+    model: str = Field(min_length=1, max_length=120)
+
+
 class ResearchSearchIn(BaseModel):
     query: str = Field(min_length=2, max_length=300)
 

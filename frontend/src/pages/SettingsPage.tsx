@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router";
+import { NavLink, useSearchParams } from "react-router";
 import { Panel } from "../components/Panel.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
 import { getCloudModelPricingLabel, getLocalModelDownloadQueue } from "../lib/llmProviders.ts";
@@ -14,7 +14,7 @@ import {
 
 export function SettingsPage() {
   const [searchParams] = useSearchParams();
-  const { settings, health, aiStatus, stats, saveDisplayName, saveApiToken, selectAIModel, clearAIModel, refreshAI } = useAstra();
+  const { settings, health, aiStatus, localAIStatus, localSelectedModel, stats, saveDisplayName, saveApiToken, selectAIModel, clearAIModel, refreshAI } = useAstra();
   const [nameOverride, setNameOverride] = useState<string | null>(null);
   const [token, setToken] = useState(() => getApiToken());
   const [modelOverride, setModelOverride] = useState<string | null>(null);
@@ -26,10 +26,20 @@ export function SettingsPage() {
   const [hasPersonalKey, setHasPersonalKey] = useState(hasPersonalProviderKey);
   const [ollamaCommandCopied, setOllamaCommandCopied] = useState(false);
   const name = nameOverride ?? settings?.user_display_name ?? "";
-  const selectedModel = aiStatus?.selected_model ?? "";
+  const selectedModel = health?.cloud_deployment ? localSelectedModel ?? "" : aiStatus?.selected_model ?? "";
   const geminiStatus = aiStatus?.gemini;
   const openaiStatus = aiStatus?.openai;
-  const localModelDownloadQueue = getLocalModelDownloadQueue(aiStatus);
+  const localModels = health?.cloud_deployment ? localAIStatus?.models ?? [] : aiStatus?.models ?? [];
+  const localOllamaConnected = health?.cloud_deployment ? Boolean(localAIStatus?.connected) : Boolean(aiStatus?.connected);
+  const localModelAIStatus = aiStatus
+    ? {
+        ...aiStatus,
+        connected: localOllamaConnected,
+        models: localModels,
+        selected_model: selectedModel || null,
+      }
+    : null;
+  const localModelDownloadQueue = getLocalModelDownloadQueue(localModelAIStatus);
   const isCloudModelSelected = selectedModel.startsWith("gemini:") || selectedModel.startsWith("openai:");
   const selectedLocalModel = modelOverride ?? (isCloudModelSelected ? "" : selectedModel);
   const selectedGeminiModel = geminiModelOverride ?? (selectedModel.startsWith("gemini:") ? selectedModel.slice("gemini:".length) : "");
@@ -207,8 +217,8 @@ export function SettingsPage() {
       <Panel id="settings-ollama" title={health?.cloud_deployment ? "HOSTED AI MODEL · OLLAMA" : "LOCAL AI MODEL · OLLAMA"}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className={`font-mono text-xs tracking-[0.16em] ${aiStatus?.connected ? "text-astra-ok" : "text-astra-danger"}`}>
-              {aiStatus?.connected ? "OLLAMA CONNECTED" : "OLLAMA NOT CONNECTED"}
+            <p className={`font-mono text-xs tracking-[0.16em] ${localOllamaConnected ? "text-astra-ok" : "text-astra-danger"}`}>
+              {localOllamaConnected ? health?.cloud_deployment ? "THIS PC OLLAMA CONNECTED" : "OLLAMA CONNECTED" : "OLLAMA NOT CONNECTED"}
             </p>
             <p className="mt-1 text-sm text-astra-muted">
               {selectedLocalModel
@@ -239,18 +249,18 @@ export function SettingsPage() {
             </button>
           ) : null}
         </div>
-        {aiStatus?.error ? (
-          <p className="mt-3 text-sm text-astra-danger" role="status">{aiStatus.error}</p>
+        {(health?.cloud_deployment ? localAIStatus?.error : aiStatus?.error) ? (
+          <p className="mt-3 text-sm text-astra-danger" role="status">{health?.cloud_deployment ? localAIStatus?.error : aiStatus?.error}</p>
         ) : null}
         <p className="mt-4 text-sm leading-6 text-astra-muted">
           {health?.cloud_deployment
-            ? "Hosted Ollama runs on the server configured by ASTRA_OLLAMA_URL in Vercel; Ollama does not need to be installed on your PC. Use the public HTTPS address of your Ollama server. If it requires gateway authentication, set ASTRA_OLLAMA_API_KEY in Vercel."
+            ? "This section checks Ollama on your paired PC and can use its installed models without re-downloading them. The hosted Vercel backend cannot directly access your PC; pairing lets the browser securely relay AI requests through the local companion."
             : "When Ollama is selected, AI runs locally and chat history stays on this computer. Installed local models only appear here. Your computer reports"}{" "}
           {!health?.cloud_deployment
             ? <>{stats ? `${stats.ram_total_gb.toFixed(1)} GB RAM` : "its RAM size"}; models also need extra memory while generating, so larger models may run slowly or fail to load.</>
             : null}
         </p>
-        {aiStatus?.models.length ? (
+        {localModels.length ? (
           <form
             className="mt-4 flex flex-col gap-3 sm:flex-row"
             onSubmit={(event) => {
@@ -277,7 +287,7 @@ export function SettingsPage() {
               className="min-w-0 flex-1 rounded-xl border border-astra-cyan/30 bg-[#080d18] px-4 py-3 outline-none focus:border-astra-cyan"
             >
               <option value="">{health?.cloud_deployment ? "Choose a hosted model" : "Choose an installed model"}</option>
-              {aiStatus.models.map((model) => (
+              {localModels.map((model) => (
                 <option key={model.name} value={model.name}>
                   {model.name} · {(model.size / 1_000_000_000).toFixed(1)} GB
                   {model.parameter_size ? ` · ${model.parameter_size}` : ""}
@@ -286,20 +296,25 @@ export function SettingsPage() {
             </select>
             <button
               type="submit"
-              disabled={!selectedLocalModel || selectedLocalModel === aiStatus.selected_model}
+              disabled={!selectedLocalModel || selectedLocalModel === selectedModel}
               className="rounded-xl bg-astra-blue px-4 py-3 font-display text-xs tracking-[0.16em] disabled:opacity-40"
             >
               USE MODEL
             </button>
           </form>
         ) : null}
-        {aiStatus?.connected && aiStatus.models.length === 0 ? (
+        {localOllamaConnected && localModels.length === 0 ? (
           <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-astra-muted">
             {health?.cloud_deployment
               ? "The hosted Ollama server has no models installed. Install a model on that server, then check the connection again."
               : <>No local models are installed. Run a small model such as{" "}
                   <code className="font-mono text-astra-cyan">ollama run qwen2.5:3b</code> in a terminal and check again.
                   Model downloads use disk space and RAM; ASTRA will not download one automatically.</>}
+          </div>
+        ) : null}
+        {health?.cloud_deployment && !localAIStatus?.connected ? (
+          <div className="mt-4 rounded-xl border border-amber-300/20 bg-amber-950/15 p-4 text-sm leading-6 text-astra-muted">
+            To connect Ollama already installed on this PC, open <NavLink to="/automation" className="text-astra-cyan underline">Connect Local Device</NavLink>, pair this browser once, and keep the ASTRA companion running. Then return here and press CHECK CONNECTION. Installed models will appear automatically; they will not be downloaded again.
           </div>
         ) : null}
       </Panel>

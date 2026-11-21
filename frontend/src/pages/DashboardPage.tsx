@@ -240,7 +240,7 @@ export function DashboardPage() {
     ? llmStatusCards.find((card) => card.id === agentSetup)
     : null;
 
-  async function launch(application: "code" | "chrome" | "settings") {
+  async function launch(application: "code" | "cursor" | "chrome" | "settings") {
     setWorkingAction(application);
     setActionError("");
     try {
@@ -423,9 +423,13 @@ export function DashboardPage() {
             <>
               <QuickExternalLink href="/automation" label="Pair Local Device" icon={PlugZap} />
               <QuickExternalLink href="/chat" label="Open AI Chat" icon={MessageSquare} />
+              <QuickAction label={workingAction === "code" ? "Opening VS Code..." : "Open VS Code"} icon={Code2} disabled={Boolean(workingAction)} onClick={() => void launch("code")} />
+              <QuickAction label={workingAction === "cursor" ? "Opening Cursor..." : "Open Cursor"} icon={MousePointer2} disabled={Boolean(workingAction)} onClick={() => void launch("cursor")} />
+              <QuickAction label={workingAction === "chrome" ? "Opening Chrome..." : "Open Chrome"} icon={Chrome} disabled={Boolean(workingAction)} onClick={() => void launch("chrome")} />
+              <QuickAction label={workingAction === "settings" ? "Opening Settings..." : "Open Windows Settings"} icon={Settings2} disabled={Boolean(workingAction)} onClick={() => void launch("settings")} />
               <QuickExternalLink href="https://github.com/" label="Open GitHub" icon={Github} />
               <QuickAction
-                label={workingAction === "screenshot" ? "Choose Screen..." : "Share Screen"}
+                label={workingAction === "screenshot" ? "Choosing Screen..." : "Share Screen"}
                 icon={Camera}
                 disabled={Boolean(workingAction)}
                 onClick={() => void takeScreenshot()}
@@ -434,8 +438,10 @@ export function DashboardPage() {
           ) : (
             <>
               <QuickAction label={workingAction === "code" ? "Opening VS Code..." : "Open VS Code"} icon={Code2} disabled={Boolean(workingAction)} onClick={() => void launch("code")} />
+              <QuickAction label={workingAction === "cursor" ? "Opening Cursor..." : "Open Cursor"} icon={MousePointer2} disabled={Boolean(workingAction)} onClick={() => void launch("cursor")} />
               <QuickAction label={workingAction === "chrome" ? "Opening Chrome..." : "Open Chrome"} icon={Chrome} disabled={Boolean(workingAction)} onClick={() => void launch("chrome")} />
               <QuickAction label={workingAction === "settings" ? "Opening Settings..." : "Open Windows Settings"} icon={Settings2} disabled={Boolean(workingAction)} onClick={() => void launch("settings")} />
+              <QuickExternalLink href="/automation" label="Manage Device" icon={PlugZap} />
               <QuickExternalLink href="https://github.com/" label="Open GitHub" icon={Github} />
               <QuickAction
                 label={workingAction === "screenshot" ? "Capturing..." : "Take Screenshot"}

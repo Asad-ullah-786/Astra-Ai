@@ -453,6 +453,14 @@ def test_allowlisted_automation_launch(client, monkeypatch):
         "origin": origin,
         "x-astra-device-session": pair_response.json()["access_token"],
     }
+    monkeypatch.setattr(
+        "app.api.router.available_ai_clients",
+        lambda: {"claude_code": False, "cursor": True, "copilot": True},
+    )
+    client_apps = client.get("/api/v1/device/clients", headers=device_headers)
+    assert client_apps.status_code == 200
+    assert client_apps.json() == {"claude_code": False, "cursor": True, "copilot": True}
+    assert client.get("/api/v1/device/clients", headers={"origin": origin}).status_code == 401
 
     response = client.post(
         "/api/v1/automation/launch",

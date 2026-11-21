@@ -132,6 +132,24 @@ describe("LLM status catalog", () => {
       .toMatchObject({ name: "VS Code", status: "Needs installation", state: "setup" });
   });
 
+  it("uses the connected PC's editor status instead of the hosted server status", () => {
+    const notPaired = getLLMStatusCards(connectedAI, null);
+    const paired = getLLMStatusCards(connectedAI, {
+      claude_code: false,
+      cursor: true,
+      copilot: true,
+    });
+
+    expect(notPaired.find((card) => card.id === "cursor"))
+      .toMatchObject({ status: "Needs connection", state: "setup" });
+    expect(notPaired.find((card) => card.id === "copilot"))
+      .toMatchObject({ name: "VS Code", status: "Needs connection", state: "setup" });
+    expect(paired.find((card) => card.id === "cursor"))
+      .toMatchObject({ status: "Installed · needs connection", state: "setup" });
+    expect(paired.find((card) => card.id === "copilot"))
+      .toMatchObject({ status: "Installed · needs connection", state: "setup" });
+  });
+
   it("reports Gemini connection and selected-model state from the real API status", () => {
     const available = getLLMStatusCards({
       ...connectedAI,

@@ -99,3 +99,7 @@ export function openLocalUrl(url: string): Promise<DeviceActionResponse> {
 export function getLocalSystemSnapshot(): Promise<SystemSnapshot> {
   return localRequest<SystemSnapshot>("/api/v1/device/system");
 }
+
+export function getLocalAIClients(): Promise<Record<string, boolean>> {
+  return localRequest<Record<string, boolean>>("/api/v1/device/clients");
+}

@@ -385,6 +385,14 @@ async def local_device_status(request: Request) -> dict[str, bool]:
     return {"available": True}
 
 
+@api_router.get("/device/clients")
+async def local_device_clients(request: Request) -> dict[str, bool]:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="Device app status is available only through the local companion.")
+    _require_local_device_request(request)
+    return available_ai_clients()
+
+
 @api_router.post("/device/pair", response_model=DevicePairOut)
 async def pair_local_device(
     payload: DevicePairIn,

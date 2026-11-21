@@ -218,9 +218,12 @@ function QuickAction({
 }
 
 export function DashboardPage() {
-  const { health, stats, conversations, messages, activities, activityError, modules, aiStatus, state, tasks, memories } = useAstra();
+  const { health, stats, conversations, messages, activities, activityError, modules, aiStatus, localClientAvailability, state, tasks, memories } = useAstra();
   const navigate = useNavigate();
-  const llmStatusCards = getLLMStatusCards(aiStatus);
+  const llmStatusCards = getLLMStatusCards(
+    aiStatus,
+    health?.cloud_deployment ? localClientAvailability : undefined,
+  );
   const localModelCards = getLocalModelOverviewCards(aiStatus);
   const geminiConnected = Boolean(aiStatus?.gemini?.connected);
   const openaiConnected = Boolean(aiStatus?.openai?.connected);

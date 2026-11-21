@@ -158,7 +158,10 @@ export function getLocalModelOverviewCards(aiStatus: AIStatus | null): LocalMode
   });
 }
 
-export function getLLMStatusCards(aiStatus: AIStatus | null): LLMStatusCard[] {
+export function getLLMStatusCards(
+  aiStatus: AIStatus | null,
+  localClientAvailability?: Record<string, boolean> | null,
+): LLMStatusCard[] {
   const gemini = aiStatus?.gemini;
   const openai = aiStatus?.openai;
   return LLM_STATUS_CATALOG.map((entry) => {
@@ -184,6 +187,14 @@ export function getLLMStatusCards(aiStatus: AIStatus | null): LLMStatusCard[] {
         return { id: entry.id, name: entry.name, status: "Checking installation…", state: "checking" };
       }
       const clientId = entry.id.replace("-", "_");
+      if (localClientAvailability === null) {
+        return { id: entry.id, name: entry.name, status: "Needs connection", state: "setup" };
+      }
+      if (localClientAvailability !== undefined) {
+        return localClientAvailability[clientId]
+          ? { id: entry.id, name: entry.name, status: "Installed · needs connection", state: "setup" }
+          : { id: entry.id, name: entry.name, status: "Needs installation", state: "setup" };
+      }
       return aiStatus.clients[clientId]
         ? { id: entry.id, name: entry.name, status: "Needs connection", state: "setup" }
         : { id: entry.id, name: entry.name, status: "Needs installation", state: "setup" };

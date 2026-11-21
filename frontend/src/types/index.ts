@@ -203,6 +203,7 @@ export type DeviceIntent =
 export interface AstraContextValue {
   health: HealthResponse | null;
   aiStatus: AIStatus | null;
+  localClientAvailability: Record<string, boolean> | null;
   online: boolean;
   connectionError: string | null;
   activityError: string | null;

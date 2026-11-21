@@ -21,7 +21,7 @@ import {
   updateTask as patchTask,
   updateMemory as patchMemory,
 } from "../services/api.ts";
-import { getLocalSystemSnapshot, hasLocalDeviceSession } from "../services/device.ts";
+import { getLocalAIClients, getLocalSystemSnapshot, hasLocalDeviceSession } from "../services/device.ts";
 import type {
   AIStatus,
   ActivityItem,
@@ -60,6 +60,7 @@ function describe(error: unknown): string {
 export function AstraProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [aiStatus, setAIStatus] = useState<AIStatus | null>(null);
+  const [localClientAvailability, setLocalClientAvailability] = useState<Record<string, boolean> | null>(null);
   const [online, setOnline] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
@@ -144,19 +145,32 @@ export function AstraProvider({ children }: { children: ReactNode }) {
         try {
           if (nextHealth.cloud_deployment) {
             if (hasLocalDeviceSession()) {
-              const localStats = await getLocalSystemSnapshot();
-              if (!stopped) setStats(localStats);
+              const [localStats, localClients] = await Promise.all([
+                getLocalSystemSnapshot(),
+                getLocalAIClients(),
+              ]);
+              if (!stopped) {
+                setStats(localStats);
+                setLocalClientAvailability(localClients);
+              }
             } else {
-              if (!stopped) setStats(null);
+              if (!stopped) {
+                setStats(null);
+                setLocalClientAvailability(null);
+              }
             }
           } else {
             const nextStats = await apiGet<SystemSnapshot>("/api/v1/system");
-            if (!stopped) setStats(nextStats);
+            if (!stopped) {
+              setStats(nextStats);
+              setLocalClientAvailability(null);
+            }
           }
           if (!stopped) setConnectionError(null);
         } catch (error) {
           if (!stopped) {
             setStats(null);
+            setLocalClientAvailability(null);
             setConnectionError(
               nextHealth.cloud_deployment
                 ? "Start and pair the local ASTRA companion to view this device's CPU, RAM, and disk."
@@ -521,6 +535,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
     () => ({
       health,
       aiStatus,
+      localClientAvailability,
       online,
       connectionError,
       activityError,
@@ -560,6 +575,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
     [
       health,
       aiStatus,
+      localClientAvailability,
       online,
       connectionError,
       activityError,

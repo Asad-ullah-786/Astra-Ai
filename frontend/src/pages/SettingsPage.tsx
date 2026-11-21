@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 import { Panel } from "../components/Panel.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
 import { getCloudModelPricingLabel, getLocalModelDownloadQueue } from "../lib/llmProviders.ts";
@@ -12,6 +13,7 @@ import {
 } from "../services/api.ts";
 
 export function SettingsPage() {
+  const [searchParams] = useSearchParams();
   const { settings, health, aiStatus, stats, saveDisplayName, saveApiToken, selectAIModel, clearAIModel, refreshAI } = useAstra();
   const [nameOverride, setNameOverride] = useState<string | null>(null);
   const [token, setToken] = useState(() => getApiToken());
@@ -41,6 +43,24 @@ export function SettingsPage() {
       .then(setUsage)
       .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Could not load today's AI usage."));
   }, [health?.cloud_deployment]);
+
+  useEffect(() => {
+    const provider = searchParams.get("provider");
+    if (!provider) return;
+    const targetId = provider === "gemini"
+      ? "settings-gemini"
+      : provider === "openai"
+        ? "settings-openai"
+        : "settings-ollama";
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.classList.add("settings-section-highlight");
+      window.setTimeout(() => target.classList.remove("settings-section-highlight"), 2400);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [searchParams]);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
@@ -184,7 +204,7 @@ export function SettingsPage() {
         </Panel>
       ) : null}
 
-      <Panel title={health?.cloud_deployment ? "HOSTED AI MODEL · OLLAMA" : "LOCAL AI MODEL · OLLAMA"}>
+      <Panel id="settings-ollama" title={health?.cloud_deployment ? "HOSTED AI MODEL · OLLAMA" : "LOCAL AI MODEL · OLLAMA"}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className={`font-mono text-xs tracking-[0.16em] ${aiStatus?.connected ? "text-astra-ok" : "text-astra-danger"}`}>
@@ -372,7 +392,7 @@ export function SettingsPage() {
         </ol>
       </Panel> : null}
 
-      <Panel title="CLOUD AI MODEL · GOOGLE GEMINI">
+      <Panel id="settings-gemini" title="CLOUD AI MODEL · GOOGLE GEMINI">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className={`font-mono text-xs tracking-[0.16em] ${geminiStatus?.connected ? "text-astra-ok" : "text-astra-danger"}`}>
@@ -452,7 +472,7 @@ export function SettingsPage() {
           </form>
         ) : null}
       </Panel>
-      <Panel title="CLOUD AI MODEL · OPENAI">
+      <Panel id="settings-openai" title="CLOUD AI MODEL · OPENAI">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className={`font-mono text-xs tracking-[0.16em] ${openaiStatus?.connected ? "text-astra-ok" : "text-astra-danger"}`}>

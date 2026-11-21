@@ -9,7 +9,7 @@ const LLM_STATUS_CATALOG = [
   { id: "deepseek", name: "DeepSeek-R1", kind: "model", matches: (name: string) => /deepseek/i.test(name) },
   { id: "phi", name: "Phi-3", kind: "model", matches: (name: string) => /phi-?3/i.test(name) },
   { id: "cursor", name: "Cursor", kind: "client" },
-  { id: "copilot", name: "Copilot", kind: "client" },
+  { id: "copilot", name: "VS Code", kind: "client" },
 ] as const;
 
 const LOCAL_MODEL_OVERVIEW_CATALOG = [
@@ -185,8 +185,8 @@ export function getLLMStatusCards(aiStatus: AIStatus | null): LLMStatusCard[] {
       }
       const clientId = entry.id.replace("-", "_");
       return aiStatus.clients[clientId]
-        ? { id: entry.id, name: entry.name, status: "Installed · connection needed", state: "setup" }
-        : { id: entry.id, name: entry.name, status: "Needs connection · connect on this PC", state: "setup" };
+        ? { id: entry.id, name: entry.name, status: "Needs connection", state: "setup" }
+        : { id: entry.id, name: entry.name, status: "Needs installation", state: "setup" };
     }
 
     if (entry.id === "gemini" || entry.id === "openai") {

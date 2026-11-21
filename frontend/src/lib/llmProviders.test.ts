@@ -116,20 +116,20 @@ describe("LLM status catalog", () => {
     expect(llama).toMatchObject({ status: "Available soon", state: "unavailable" });
     expect(openAI).toMatchObject({ status: "Setup required", state: "setup" });
     expect(gemini).toMatchObject({ status: "Setup required", state: "setup" });
-    expect(cursor).toMatchObject({ status: "Installed · connection needed", state: "setup" });
-    expect(copilot).toMatchObject({ status: "Installed · connection needed", state: "setup" });
+    expect(cursor).toMatchObject({ status: "Needs connection", state: "setup" });
+    expect(copilot).toMatchObject({ name: "VS Code", status: "Needs connection", state: "setup" });
   });
 
-  it("asks the user to connect Cursor and Copilot on their own PC when not detected", () => {
+  it("shows a clear installation state when Cursor or VS Code is not detected", () => {
     const cards = getLLMStatusCards({
       ...connectedAI,
       clients: { claude_code: false, cursor: false, copilot: false },
     });
 
     expect(cards.find((card) => card.id === "cursor"))
-      .toMatchObject({ status: "Needs connection · connect on this PC", state: "setup" });
+      .toMatchObject({ status: "Needs installation", state: "setup" });
     expect(cards.find((card) => card.id === "copilot"))
-      .toMatchObject({ status: "Needs connection · connect on this PC", state: "setup" });
+      .toMatchObject({ name: "VS Code", status: "Needs installation", state: "setup" });
   });
 
   it("reports Gemini connection and selected-model state from the real API status", () => {

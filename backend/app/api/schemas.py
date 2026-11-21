@@ -300,7 +300,7 @@ class MemoryOut(BaseModel):
 
 
 class AutomationLaunchIn(BaseModel):
-    application: Literal["code", "chrome", "settings"]
+    application: Literal["code", "cursor", "chrome", "settings"]
 
 
 class AutomationLaunchOut(BaseModel):
@@ -319,7 +319,7 @@ class DevicePairOut(BaseModel):
 
 class DeviceActionIn(BaseModel):
     action: Literal["launch_app", "open_url"]
-    application: Literal["code", "chrome", "settings"] | None = None
+    application: Literal["code", "cursor", "chrome", "settings"] | None = None
     url: str | None = Field(default=None, max_length=2048)
 
     @model_validator(mode="after")

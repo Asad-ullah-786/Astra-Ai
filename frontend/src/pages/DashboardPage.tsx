@@ -13,18 +13,22 @@ import {
   Cpu,
   Database,
   Github,
+  ExternalLink,
   ListTodo,
   MessageSquare,
   MousePointer2,
+  PlugZap,
   Search,
   Settings2,
   Sparkles,
   Star,
   Timer,
+  Download,
+  X,
   type LucideIcon,
   Waves,
 } from "lucide-react";
-import { NavLink } from "react-router";
+import { NavLink, useNavigate } from "react-router";
 import { AstraCore } from "../components/AstraCore.tsx";
 import { Panel } from "../components/Panel.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
@@ -175,6 +179,15 @@ function ActivitySparkline({ activities }: { activities: ActivityItem[] }) {
 }
 
 function QuickExternalLink({ href, label, icon: Icon }: { href: string; label: string; icon: LucideIcon }) {
+  if (href.startsWith("/")) {
+    return (
+      <NavLink to={href} className="quick-command">
+        <Icon className="size-4" />
+        <span>{label}</span>
+        <ArrowRight className="quick-arrow size-3" />
+      </NavLink>
+    );
+  }
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="quick-command">
       <Icon className="size-4" />
@@ -206,6 +219,7 @@ function QuickAction({
 
 export function DashboardPage() {
   const { health, stats, conversations, messages, activities, activityError, modules, aiStatus, state, tasks, memories } = useAstra();
+  const navigate = useNavigate();
   const llmStatusCards = getLLMStatusCards(aiStatus);
   const localModelCards = getLocalModelOverviewCards(aiStatus);
   const geminiConnected = Boolean(aiStatus?.gemini?.connected);
@@ -214,9 +228,17 @@ export function DashboardPage() {
   const recentActivities = activities.slice(0, 6);
   const [workingAction, setWorkingAction] = useState("");
   const [actionError, setActionError] = useState("");
+  const [agentSetup, setAgentSetup] = useState<"cursor" | "copilot" | null>(null);
+  const [agentActionMessage, setAgentActionMessage] = useState("");
   const [missionRange, setMissionRange] = useState<MissionRange>("today");
   const [now] = useState(() => new Date());
   const timelineTasks = getTimelineTasks(tasks, missionRange, now);
+  const agentSetupCard = agentSetup
+    ? llmStatusCards.find((card) => card.id === agentSetup)
+    : null;
+  const agentInstalled = agentSetup
+    ? Boolean(aiStatus?.clients?.[agentSetup])
+    : false;
 
   async function launch(application: "code" | "chrome" | "settings") {
     setWorkingAction(application);
@@ -241,6 +263,24 @@ export function DashboardPage() {
     } finally {
       setWorkingAction("");
     }
+  }
+
+  async function openAgentApplication(application: "code" | "cursor") {
+    setWorkingAction(application);
+    setAgentActionMessage("");
+    setActionError("");
+    try {
+      const result = await launchApplication(application);
+      setAgentActionMessage(result.message);
+    } catch (caught) {
+      setAgentActionMessage(caught instanceof Error ? caught.message : "The application could not be opened.");
+    } finally {
+      setWorkingAction("");
+    }
+  }
+
+  function openAgentWebsite(url: string) {
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -380,18 +420,31 @@ export function DashboardPage() {
 
         <Panel title="QUICK COMMANDS" className="dashboard-panel quick-panel">
           {health?.cloud_deployment ? (
-            <p className="text-xs leading-5 text-astra-muted">
-              Online: AI chat, research, saved tasks/memory, and browser speech where supported. Open Automation to pair the optional Windows companion for approved app and website launches; screen capture, selected text files, microphone, and local camera preview use browser permission prompts.
-            </p>
+            <>
+              <QuickExternalLink href="/automation" label="Pair Local Device" icon={PlugZap} />
+              <QuickExternalLink href="/chat" label="Open AI Chat" icon={MessageSquare} />
+              <QuickExternalLink href="https://github.com/" label="Open GitHub" icon={Github} />
+              <QuickAction
+                label={workingAction === "screenshot" ? "Choose Screen..." : "Share Screen"}
+                icon={Camera}
+                disabled={Boolean(workingAction)}
+                onClick={() => void takeScreenshot()}
+              />
+            </>
           ) : (
             <>
               <QuickAction label={workingAction === "code" ? "Opening VS Code..." : "Open VS Code"} icon={Code2} disabled={Boolean(workingAction)} onClick={() => void launch("code")} />
               <QuickAction label={workingAction === "chrome" ? "Opening Chrome..." : "Open Chrome"} icon={Chrome} disabled={Boolean(workingAction)} onClick={() => void launch("chrome")} />
               <QuickAction label={workingAction === "settings" ? "Opening Settings..." : "Open Windows Settings"} icon={Settings2} disabled={Boolean(workingAction)} onClick={() => void launch("settings")} />
+              <QuickExternalLink href="https://github.com/" label="Open GitHub" icon={Github} />
+              <QuickAction
+                label={workingAction === "screenshot" ? "Capturing..." : "Take Screenshot"}
+                icon={Camera}
+                disabled={Boolean(workingAction)}
+                onClick={() => void takeScreenshot()}
+              />
             </>
           )}
-          <QuickExternalLink href="https://github.com/" label="Open GitHub" icon={Github} />
-          <QuickAction label={workingAction === "screenshot" ? "Capturing..." : "Take Screenshot"} icon={Camera} disabled={Boolean(workingAction)} onClick={() => void takeScreenshot()} />
           {actionError ? (
             <p className="text-xs text-astra-danger" role="alert">
               {actionError}
@@ -404,7 +457,7 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-row dashboard-row-bottom">
-        <Panel title={health?.cloud_deployment ? "HOSTED SYSTEM MONITOR" : "SYSTEM MONITOR"} className="dashboard-panel monitor-panel">
+        <Panel title={health?.cloud_deployment ? "THIS DEVICE SYSTEM MONITOR" : "SYSTEM MONITOR"} className="dashboard-panel monitor-panel">
           <div className="gauge-grid">
             <SystemGauge label="CPU" percent={stats?.cpu_percent ?? null} detail={stats ? `${stats.cpu_count} logical CPUs` : "Waiting"} />
             <SystemGauge label="RAM" percent={stats?.ram_percent ?? null} detail={stats ? `${formatGigabytes(stats.ram_used_gb)} / ${formatGigabytes(stats.ram_total_gb)}` : "Waiting"} />
@@ -434,18 +487,112 @@ export function DashboardPage() {
           <div className="llm-model-grid">
             {llmStatusCards.map((card) => {
               const Icon = LLM_STATUS_ICONS[card.id];
+              const isAgentCard = card.id === "cursor" || card.id === "copilot";
               return (
-                <div className="llm-model" data-state={card.state} key={card.id}>
+                <button
+                  type="button"
+                  className="llm-model"
+                  data-state={card.state}
+                  key={card.id}
+                  onClick={() => {
+                    if (isAgentCard) {
+                      setAgentActionMessage("");
+                      setAgentSetup(card.id as "cursor" | "copilot");
+                      return;
+                    }
+                    const provider = card.id === "mistral"
+                      || card.id === "llama"
+                      || card.id === "qwen"
+                      || card.id === "deepseek"
+                      || card.id === "phi"
+                      ? "ollama"
+                      : card.id;
+                    navigate(`/settings?provider=${provider}`);
+                  }}
+                  aria-label={`View ${card.name} settings and details`}
+                >
                   <span className="llm-provider-icon" data-provider={card.id}><Icon className="size-3.5" /></span>
                   <span><strong>{card.name}</strong><small>{card.status}</small></span>
                   {card.state === "connected" ? <CheckCircle2 className="llm-check size-3.5" /> : null}
-                </div>
+                </button>
               );
             })}
           </div>
           <NavLink to="/settings" className="panel-action">Manage providers <ArrowRight className="size-3" /></NavLink>
         </Panel>
       </div>
+
+      {agentSetupCard ? (
+        <div className="agent-connect-overlay" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setAgentSetup(null);
+        }}>
+          <section className="agent-connect-dialog" role="dialog" aria-modal="true" aria-label={`Connect ${agentSetupCard.name}`}>
+            <button
+              type="button"
+              className="agent-connect-close"
+              aria-label="Close"
+              onClick={() => setAgentSetup(null)}
+            >
+              <X className="size-4" />
+            </button>
+            <span className="agent-connect-icon">
+              {agentSetup === "cursor" ? <MousePointer2 className="size-5" /> : <Bot className="size-5" />}
+            </span>
+            <span className="agent-connect-eyebrow">{agentInstalled ? "READY TO CONNECT" : "SETUP AVAILABLE"}</span>
+            <h2>{agentSetupCard.name}</h2>
+            <p>
+              {agentSetup === "cursor"
+                ? "Open Cursor and connect its agent to this PC. You can also install Cursor if it is not available."
+                : "Open VS Code and connect GitHub Copilot Agent. If VS Code or the agent extension is missing, install it from the official source."}
+            </p>
+            <div className="agent-connect-actions">
+              {agentInstalled ? (
+                <button
+                  type="button"
+                  className="agent-connect-primary"
+                  disabled={Boolean(workingAction)}
+                  onClick={() => void openAgentApplication(agentSetup === "cursor" ? "cursor" : "code")}
+                >
+                  <PlugZap className="size-4" />
+                  {workingAction ? "Opening..." : `Open ${agentSetupCard.name}`}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="agent-connect-primary"
+                  onClick={() => openAgentWebsite(
+                    agentSetup === "cursor"
+                      ? "https://cursor.com/download"
+                      : "https://code.visualstudio.com/download",
+                  )}
+                >
+                  <Download className="size-4" />
+                  {agentSetup === "cursor" ? "Install Cursor" : "Install VS Code"}
+                </button>
+              )}
+              <button
+                type="button"
+                className="agent-connect-secondary"
+                onClick={() => openAgentWebsite(
+                  agentSetup === "cursor"
+                    ? "https://cursor.com/docs"
+                    : "https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat",
+                )}
+              >
+                <ExternalLink className="size-4" />
+                {agentSetup === "cursor" ? "Connect Cursor Agent" : "Connect Copilot Agent"}
+              </button>
+            </div>
+            <NavLink to="/automation" className="agent-connect-pair" onClick={() => setAgentSetup(null)}>
+              Pair or manage the local ASTRA companion
+              <ArrowRight className="size-3" />
+            </NavLink>
+            {agentActionMessage ? (
+              <p className="agent-connect-message" role="status">{agentActionMessage}</p>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
 
     </div>
   );

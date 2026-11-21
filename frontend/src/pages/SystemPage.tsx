@@ -44,10 +44,12 @@ export function SystemPage() {
           percent={stats?.disk_percent ?? null}
         />
       </div>
-      <Panel title={health?.cloud_deployment ? "HOSTED BACKEND RUNTIME" : "HOST"}>
+      <Panel title={health?.cloud_deployment ? "THIS DEVICE" : "HOST"}>
         {health?.cloud_deployment ? (
           <p className="mb-3 text-sm text-astra-muted">
-            These readings describe the Vercel backend runtime, not your personal computer.
+            {stats
+              ? "Live readings come from the computer running the paired ASTRA companion."
+              : "Pair the local ASTRA companion to show this device's live CPU, RAM, disk, and host details. No sensor permissions are required; the companion can read standard system metrics."}
           </p>
         ) : null}
         {stats ? (

@@ -21,6 +21,7 @@ import {
   updateTask as patchTask,
   updateMemory as patchMemory,
 } from "../services/api.ts";
+import { getLocalSystemSnapshot, hasLocalDeviceSession } from "../services/device.ts";
 import type {
   AIStatus,
   ActivityItem,
@@ -141,12 +142,27 @@ export function AstraProvider({ children }: { children: ReactNode }) {
         setOnline(nextHealth.status === "online");
 
         try {
-          const nextStats = await apiGet<SystemSnapshot>("/api/v1/system");
-          if (stopped) return;
-          setStats(nextStats);
-          setConnectionError(null);
+          if (nextHealth.cloud_deployment) {
+            if (hasLocalDeviceSession()) {
+              const localStats = await getLocalSystemSnapshot();
+              if (!stopped) setStats(localStats);
+            } else {
+              if (!stopped) setStats(null);
+            }
+          } else {
+            const nextStats = await apiGet<SystemSnapshot>("/api/v1/system");
+            if (!stopped) setStats(nextStats);
+          }
+          if (!stopped) setConnectionError(null);
         } catch (error) {
-          if (!stopped) setConnectionError(describe(error));
+          if (!stopped) {
+            setStats(null);
+            setConnectionError(
+              nextHealth.cloud_deployment
+                ? "Start and pair the local ASTRA companion to view this device's CPU, RAM, and disk."
+                : describe(error),
+            );
+          }
         }
 
         if (recovered) {

@@ -1,4 +1,5 @@
 import type { LocalApplication } from "../types/index.ts";
+import type { SystemSnapshot } from "../types/index.ts";
 
 const LOCAL_DEVICE_ORIGIN = "http://127.0.0.1:8787";
 const DEVICE_SESSION_KEY = "astra.localDeviceSession";
@@ -93,4 +94,8 @@ export function openLocalUrl(url: string): Promise<DeviceActionResponse> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "open_url", url }),
   });
+}
+
+export function getLocalSystemSnapshot(): Promise<SystemSnapshot> {
+  return localRequest<SystemSnapshot>("/api/v1/device/system");
 }

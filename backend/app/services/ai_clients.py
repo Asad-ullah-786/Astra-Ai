@@ -1,15 +1,19 @@
 import shutil
 
+from app.services.automation import AutomationError, _application_path
 
-_CLIENT_COMMANDS = {
-    "claude_code": ("claude",),
-    "cursor": ("cursor",),
-    "copilot": ("copilot",),
-}
+
+def _application_is_available(application: str) -> bool:
+    try:
+        _application_path(application)
+    except AutomationError:
+        return False
+    return True
 
 
 def available_ai_clients() -> dict[str, bool]:
     return {
-        client: any(shutil.which(command) for command in commands)
-        for client, commands in _CLIENT_COMMANDS.items()
+        "claude_code": shutil.which("claude") is not None,
+        "cursor": _application_is_available("cursor"),
+        "copilot": _application_is_available("code") or shutil.which("copilot") is not None,
     }

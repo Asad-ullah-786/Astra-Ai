@@ -211,6 +211,14 @@ async def system(_: str | None = Depends(require_identity)) -> SystemSnapshot:
     return SystemSnapshot(**system_snapshot())
 
 
+@api_router.get("/device/system", response_model=SystemSnapshot)
+async def local_device_system(request: Request) -> SystemSnapshot:
+    if get_settings().is_vercel_deployment:
+        raise HTTPException(status_code=404, detail="Device system readings are available only through the local companion.")
+    _require_local_device_request(request)
+    return SystemSnapshot(**system_snapshot())
+
+
 @api_router.get("/modules", response_model=list[ModuleInfo])
 async def modules(
     user_id: str | None = Depends(require_identity),

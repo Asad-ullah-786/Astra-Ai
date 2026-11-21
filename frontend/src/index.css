@@ -1825,6 +1825,148 @@ textarea {
   background: rgba(2, 9, 18, 0.42);
 }
 
+button.llm-model {
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+button.llm-model:not(:disabled) {
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+button.llm-model:not(:disabled):hover,
+button.llm-model:not(:disabled):focus-visible {
+  border-color: rgba(100, 216, 239, 0.48);
+  background: rgba(10, 32, 48, 0.78);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.settings-section-highlight {
+  border-color: rgba(91, 220, 239, 0.78) !important;
+  box-shadow: 0 0 0 2px rgba(74, 196, 226, 0.14), 0 12px 34px rgba(25, 139, 166, 0.16);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.agent-connect-overlay {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(2, 8, 15, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.agent-connect-dialog {
+  position: relative;
+  width: min(420px, 100%);
+  border: 1px solid rgba(94, 189, 219, 0.24);
+  border-radius: 0.75rem;
+  padding: 1.35rem;
+  background: linear-gradient(145deg, rgba(11, 29, 43, 0.98), rgba(5, 15, 27, 0.98));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+}
+
+.agent-connect-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid rgba(111, 183, 207, 0.18);
+  border-radius: 50%;
+  place-items: center;
+  color: #95aabd;
+  background: rgba(2, 10, 18, 0.5);
+  cursor: pointer;
+}
+
+.agent-connect-icon {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.75rem;
+  border-radius: 0.55rem;
+  place-items: center;
+  color: #74ddf2;
+  background: rgba(30, 119, 148, 0.28);
+}
+
+.agent-connect-eyebrow {
+  color: #62e2bd;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.agent-connect-dialog h2 {
+  margin: 0.25rem 0 0.45rem;
+  color: #d5ebf7;
+  font-size: 1.1rem;
+}
+
+.agent-connect-dialog > p {
+  margin: 0;
+  color: #91aabd;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.agent-connect-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.agent-connect-actions button {
+  display: flex;
+  min-height: 2.45rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  border-radius: 0.42rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.agent-connect-primary {
+  border: 1px solid rgba(82, 220, 202, 0.38);
+  color: #d8fff7;
+  background: rgba(28, 139, 126, 0.42);
+}
+
+.agent-connect-secondary {
+  border: 1px solid rgba(91, 168, 203, 0.28);
+  color: #cbe5f3;
+  background: rgba(20, 54, 77, 0.55);
+}
+
+.agent-connect-pair {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.8rem;
+  color: #6bcde4;
+  font-size: 0.68rem;
+  text-decoration: none;
+}
+
+.agent-connect-message {
+  margin-top: 0.65rem !important;
+  text-align: center;
+  color: #c9dce8 !important;
+}
+
 .llm-model.is-current {
   border-color: rgba(49, 201, 224, 0.3);
 }

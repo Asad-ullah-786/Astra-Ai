@@ -306,16 +306,31 @@ export function SettingsPage() {
 
       <Panel title="OPTIONAL · INSTALL OLLAMA ON YOUR PC">
         <p className="text-sm leading-6 text-astra-muted">
-          You can use Ollama locally without a Gemini/OpenAI key. Download and install Ollama, then open a terminal and run
-          the command below. The first run downloads the model.
+          {health?.cloud_deployment
+            ? "Already have Ollama on this computer? You can use it with ASTRA's local website. The hosted Vercel site cannot connect to your computer's localhost."
+            : "You can use Ollama locally without a Gemini/OpenAI key. If Ollama is already installed, skip the download and continue with the local ASTRA website steps below."}
         </p>
+        {health?.cloud_deployment ? (
+          <div className="mt-4 rounded-xl border border-astra-cyan/20 bg-black/25 p-4">
+            <h3 className="font-display text-xs tracking-[0.12em] text-astra-cyan">USE THE OLLAMA YOU ALREADY INSTALLED</h3>
+            <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-astra-muted">
+              <li>On your Windows PC, make sure the Ollama app is running. Open PowerShell and run <code className="font-mono text-astra-cyan">ollama list</code> to see installed models.</li>
+              <li>If the list is empty, download one model once, for example <code className="font-mono text-astra-cyan">ollama pull qwen2.5:3b</code>.</li>
+              <li>Download/extract ASTRA for PC below, install its prerequisites from the README, then run <code className="font-mono text-astra-cyan">start_astra.bat</code>.</li>
+              <li>Open <code className="font-mono text-astra-cyan">http://127.0.0.1:5173</code> on that same PC. In Settings, press <strong>CHECK CONNECTION</strong>, select your model, then press <strong>USE MODEL</strong>.</li>
+            </ol>
+            <p className="mt-3 text-xs leading-5 text-astra-muted">
+              This uses Ollama on your PC without exposing it to the internet. Pairing the companion alone does not connect local Ollama to this hosted website.
+            </p>
+          </div>
+        ) : null}
         <a
           href="https://ollama.com/download"
           target="_blank"
           rel="noreferrer"
           className="mt-3 inline-flex rounded-lg border border-astra-cyan/40 px-4 py-2 text-sm text-astra-cyan"
         >
-          DOWNLOAD OLLAMA
+          {health?.cloud_deployment ? "OLLAMA DOWNLOAD (IF NEEDED)" : "DOWNLOAD OLLAMA"}
         </a>
         <a
           href="https://github.com/Asad-ullah-786/Astra-Ai/archive/refs/heads/main.zip"
@@ -344,7 +359,7 @@ export function SettingsPage() {
           </button>
         </div>
         <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs leading-5 text-astra-muted">
-          <li>Install Ollama from the download link and run the command above once.</li>
+          <li>If Ollama is not installed yet, install it from the download link. Run the command above only if you need to download this model.</li>
           <li>To use it with ASTRA, download and extract ASTRA for PC, install the prerequisites in its README, then run <code>start_astra.bat</code> on that PC and open <code>http://127.0.0.1:5173</code>.</li>
           <li>Return here, press CHECK CONNECTION, select the downloaded model, and choose USE MODEL.</li>
         </ol>

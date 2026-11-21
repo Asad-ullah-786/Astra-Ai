@@ -1926,6 +1926,12 @@ button.llm-model:not(:disabled):focus-visible {
   margin-top: 1rem;
 }
 
+@media (max-width: 420px) {
+  .agent-connect-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .agent-connect-actions button {
   display: flex;
   min-height: 2.45rem;
@@ -1959,6 +1965,25 @@ button.llm-model:not(:disabled):focus-visible {
   color: #6bcde4;
   font-size: 0.68rem;
   text-decoration: none;
+}
+
+.agent-connect-steps {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.9rem 0 0;
+  padding-left: 1.2rem;
+  color: #b7cbd9;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  list-style: decimal;
+}
+
+.agent-connect-note {
+  margin-top: 0.8rem !important;
+  border-left: 2px solid rgba(241, 184, 86, 0.6);
+  padding-left: 0.6rem;
+  color: #c9b991 !important;
+  font-size: 0.66rem !important;
 }
 
 .agent-connect-message {

@@ -236,9 +236,6 @@ export function DashboardPage() {
   const agentSetupCard = agentSetup
     ? llmStatusCards.find((card) => card.id === agentSetup)
     : null;
-  const agentInstalled = agentSetup
-    ? Boolean(aiStatus?.clients?.[agentSetup])
-    : false;
 
   async function launch(application: "code" | "chrome" | "settings") {
     setWorkingAction(application);
@@ -538,53 +535,77 @@ export function DashboardPage() {
             <span className="agent-connect-icon">
               {agentSetup === "cursor" ? <MousePointer2 className="size-5" /> : <Bot className="size-5" />}
             </span>
-            <span className="agent-connect-eyebrow">{agentInstalled ? "READY TO CONNECT" : "SETUP AVAILABLE"}</span>
+            <span className="agent-connect-eyebrow">EDITOR AGENT SETUP</span>
             <h2>{agentSetupCard.name}</h2>
             <p>
               {agentSetup === "cursor"
-                ? "Open Cursor and connect its agent to this PC. You can also install Cursor if it is not available."
-                : "Open VS Code and connect GitHub Copilot Agent. If VS Code or the agent extension is missing, install it from the official source."}
+                ? "Set up Cursor Agent on your computer, then open Cursor from ASTRA when the local companion is paired."
+                : "Install GitHub Copilot in VS Code, sign in, and use Copilot Chat in Agent mode. You can open VS Code from ASTRA after pairing the local companion."}
             </p>
             <div className="agent-connect-actions">
-              {agentInstalled ? (
-                <button
-                  type="button"
-                  className="agent-connect-primary"
-                  disabled={Boolean(workingAction)}
-                  onClick={() => void openAgentApplication(agentSetup === "cursor" ? "cursor" : "code")}
-                >
-                  <PlugZap className="size-4" />
-                  {workingAction ? "Opening..." : `Open ${agentSetupCard.name}`}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="agent-connect-primary"
-                  onClick={() => openAgentWebsite(
-                    agentSetup === "cursor"
-                      ? "https://cursor.com/download"
-                      : "https://code.visualstudio.com/download",
-                  )}
-                >
-                  <Download className="size-4" />
-                  {agentSetup === "cursor" ? "Install Cursor" : "Install VS Code"}
-                </button>
-              )}
+              <button
+                type="button"
+                className="agent-connect-primary"
+                disabled={Boolean(workingAction)}
+                onClick={() => void openAgentApplication(agentSetup === "cursor" ? "cursor" : "code")}
+              >
+                <PlugZap className="size-4" />
+                {workingAction ? "Opening..." : `Open ${agentSetup === "cursor" ? "Cursor" : "VS Code"}`}
+              </button>
               <button
                 type="button"
                 className="agent-connect-secondary"
                 onClick={() => openAgentWebsite(
                   agentSetup === "cursor"
-                    ? "https://cursor.com/docs"
-                    : "https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat",
+                    ? "https://cursor.com/download"
+                    : "https://code.visualstudio.com/download",
                 )}
               >
-                <ExternalLink className="size-4" />
-                {agentSetup === "cursor" ? "Connect Cursor Agent" : "Connect Copilot Agent"}
+                <Download className="size-4" />
+                Install {agentSetup === "cursor" ? "Cursor" : "VS Code"}
               </button>
+              {agentSetup === "copilot" ? (
+                <button
+                  type="button"
+                  className="agent-connect-secondary"
+                  onClick={() => openAgentWebsite("https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat")}
+                >
+                  <ExternalLink className="size-4" />
+                  Get Copilot extension
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="agent-connect-secondary"
+                  onClick={() => openAgentWebsite("https://docs.cursor.com/chat/agent")}
+                >
+                  <ExternalLink className="size-4" />
+                  Cursor Agent guide
+                </button>
+              )}
             </div>
+            <ol className="agent-connect-steps">
+              {agentSetup === "cursor" ? (
+                <>
+                  <li>Install Cursor, open it, and sign in to your Cursor account.</li>
+                  <li>Open a project folder, choose the Agent view, and send a test prompt.</li>
+                  <li>To launch Cursor from this hosted website, pair the ASTRA companion on the same PC first.</li>
+                </>
+              ) : (
+                <>
+                  <li>Install VS Code, then install the GitHub Copilot Chat extension using the button above.</li>
+                  <li>Sign in to GitHub in VS Code with an account that has Copilot access.</li>
+                  <li>Open Copilot Chat, choose Agent mode, and approve any requested workspace permissions.</li>
+                  <li>To launch VS Code from this hosted website, pair the ASTRA companion on the same PC first.</li>
+                </>
+              )}
+            </ol>
+            <p className="agent-connect-note">
+              ASTRA can open the editor, but its website chat is not directly linked to Cursor Agent or Copilot Agent.
+              Agent conversations stay in the editor. Vercel also cannot detect which apps or extensions are installed on your PC.
+            </p>
             <NavLink to="/automation" className="agent-connect-pair" onClick={() => setAgentSetup(null)}>
-              Pair or manage the local ASTRA companion
+              Pair the local ASTRA companion
               <ArrowRight className="size-3" />
             </NavLink>
             {agentActionMessage ? (

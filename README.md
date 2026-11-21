@@ -59,11 +59,20 @@ The hosted backend persists guest-scoped chats, tasks, approved memories, settin
 
 A website cannot access Windows apps or files by itself. To let the hosted site request local actions, the visitor must download the repository, run `install_companion.bat` once, then `start_companion.bat`. The local API binds to `127.0.0.1`; its console prints a one-use pairing code that expires after five minutes. Pairing is tab-scoped, lasts up to 12 hours, and can be revoked in ASTRA. Chrome or Edge also asks for local-network access. Every supported action requires a confirmation dialog on Windows, and ASTRA never runs arbitrary shell commands.
 
-The current companion actions are deliberately limited to opening allowlisted apps (VS Code, Chrome, and Windows Settings) and public HTTP(S) websites. Chat and Voice recognize only direct, explicit open-app/open-website requests. Screen capture, microphone use, and local camera preview use browser permission prompts; the camera preview is not uploaded. A visitor may select a plain-text file up to 100 KB and explicitly confirm sending it to the conversation. Folder-wide access, arbitrary webpage clicking, keyboard/mouse control, camera uploads to AI, and changing Windows system settings are not implemented; opening the website does not grant those capabilities.
+The current companion actions are deliberately limited to opening allowlisted apps (VS Code, Cursor, Chrome, and Windows Settings) and public HTTP(S) websites. Chat and Voice recognize only direct, explicit open-app/open-website requests. Screen capture, microphone use, and local camera preview use browser permission prompts; the camera preview is not uploaded. A visitor may select a plain-text file up to 100 KB and explicitly confirm sending it to the conversation. Folder-wide access, arbitrary webpage clicking, keyboard/mouse control, camera uploads to AI, and changing Windows system settings are not implemented; opening the website does not grant those capabilities.
+
+### VS Code Copilot and Cursor
+
+The hosted website can request that the paired Windows companion open VS Code or Cursor after the user approves the Windows confirmation dialog. It does not currently link website chat to Copilot Agent or Cursor Agent, and it cannot detect editor extensions installed on a visitor's computer.
+
+- **VS Code:** install VS Code and the GitHub Copilot Chat extension, sign in to a GitHub account with Copilot access, open Copilot Chat, and choose Agent mode. Pair the Windows companion in ASTRA's Automation page before using the website's Open VS Code action.
+- **Cursor:** install Cursor, sign in, open a project folder, and choose Agent. Pair the Windows companion in ASTRA's Automation page before using the website's Open Cursor action.
+
+Agent permissions and conversations remain inside the editor. The ASTRA website does not receive or control them.
 
 ## Local AI setup
 
-Install the free Ollama desktop app, start it, and download a model using its CLI, for example:
+If Ollama is already installed on the computer, start the Ollama app and check its models with `ollama list`. If no model is installed, download one using its CLI, for example:
 
 ```bat
 ollama pull qwen2.5:3b
@@ -75,7 +84,7 @@ Download Ollama from [ollama.com/download](https://ollama.com/download), then ru
 ollama run qwen2.5:3b
 ```
 
-In ASTRA Settings, check the Ollama connection, select the installed model, and choose **USE MODEL**. Local Ollama is available when ASTRA also runs on that same computer (for example with `start_astra.bat` at `http://127.0.0.1:5173`). The hosted Vercel website cannot reach the visitor's PC; connecting Ollama to the online site requires an independently hosted, publicly reachable HTTPS Ollama service configured with `ASTRA_OLLAMA_URL`. Model downloads take disk space and generation uses additional RAM beyond the model file size.
+To use that local Ollama installation, run `start_astra.bat` on the same computer and open `http://127.0.0.1:5173`. In Settings, press **CHECK CONNECTION**, select an installed model, and choose **USE MODEL**. The hosted Vercel website cannot reach the visitor's PC; using Ollama with the hosted site requires an independently hosted, publicly reachable HTTPS Ollama service configured by the site operator with `ASTRA_OLLAMA_URL`. Do not expose a local Ollama server directly to the public internet. Model downloads take disk space and generation uses additional RAM beyond the model file size.
 
 Ollama with `qwen2.5:1.5b` has been installed and a real local response verified on this machine.
 

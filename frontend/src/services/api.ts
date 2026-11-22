@@ -169,6 +169,15 @@ export function sendCommand(text: string, conversationId: string | null): Promis
   });
 }
 
+export function saveLocalAICommand(payload: {
+  text: string;
+  reply: string;
+  conversation_id: string | null;
+  model: string;
+}): Promise<CommandResult> {
+  return apiSend<CommandResult>("/api/v1/commands/local-result", "POST", payload);
+}
+
 export async function streamCommand(
   text: string,
   conversationId: string | null,

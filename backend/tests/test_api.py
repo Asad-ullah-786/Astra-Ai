@@ -562,7 +562,25 @@ def test_paired_companion_exposes_local_ollama_models_and_chat(client, monkeypat
     )
     assert response.status_code == 200
     assert response.json() == {"reply": "Local Ollama reply."}
-    device_bridge.stop()
+
+
+def test_local_ai_result_is_saved_to_authenticated_hosted_conversation(client):
+    response = client.post(
+        "/api/v1/commands/local-result",
+        json={
+            "text": "Hello from local Ollama",
+            "reply": "Local Ollama reply.",
+            "conversation_id": None,
+            "model": "gemma3:270m-it-qat",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["assistant_message"]["content"] == "Local Ollama reply."
+    assert body["user_message"]["content"] == "Hello from local Ollama"
+    assert body["model"] == "ollama:gemma3:270m-it-qat"
+    assert client.get(f"/api/v1/conversations/{body['conversation_id']}").status_code == 200
 
 
 def test_free_research_search_returns_sources(client, monkeypatch):

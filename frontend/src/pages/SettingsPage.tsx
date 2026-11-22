@@ -335,7 +335,7 @@ export function SettingsPage() {
               <li>Open <code className="font-mono text-astra-cyan">http://127.0.0.1:5173</code> on that same PC. In Settings, press <strong>CHECK CONNECTION</strong>, select your model, then press <strong>USE MODEL</strong>.</li>
             </ol>
             <p className="mt-3 text-xs leading-5 text-astra-muted">
-              This uses Ollama on your PC without exposing it to the internet. Pairing the companion alone does not connect local Ollama to this hosted website.
+              Ollama stays on your PC and is not exposed to the internet. The paired browser sends prompts through the local companion, then saves the conversation in your hosted ASTRA account.
             </p>
           </div>
         ) : null}

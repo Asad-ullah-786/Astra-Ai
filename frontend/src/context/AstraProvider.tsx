@@ -14,6 +14,7 @@ import {
   getMemories,
   getAIStatus,
   saveSettings,
+  saveLocalAICommand,
   saveAIModel,
   sessionSocketUrl,
   streamCommand,
@@ -27,7 +28,6 @@ import {
   getLocalAIStatus,
   getLocalSystemSnapshot,
   hasLocalDeviceSession,
-  saveLocalAICommand,
 } from "../services/device.ts";
 import type {
   AIStatus,

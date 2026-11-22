@@ -422,40 +422,6 @@ async def local_device_ai_chat(payload: DeviceAIChatIn, request: Request) -> dic
     return {"reply": reply}
 
 
-@api_router.post("/device/ai/conversation", response_model=CommandOut)
-async def local_device_ai_conversation(
-    payload: LocalCommandResultIn,
-    request: Request,
-    user_id: str | None = Depends(require_identity),
-    session: AsyncSession = Depends(get_session),
-) -> CommandOut:
-    if get_settings().is_vercel_deployment:
-        raise HTTPException(status_code=404, detail="Local AI conversations must be saved through the hosted backend.")
-    _require_local_device_request(request)
-    if not payload.model or len(payload.model) > 120:
-        raise HTTPException(status_code=422, detail="Choose a valid local Ollama model.")
-    try:
-        conversation, user_message, assistant_message = await save_device_command(
-            session,
-            payload.text,
-            payload.reply,
-            payload.conversation_id,
-            payload.model,
-            user_id,
-        )
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return CommandOut(
-        conversation_id=conversation.id,
-        user_message=MessageOut.model_validate(user_message),
-        assistant_message=MessageOut.model_validate(assistant_message),
-        state="completed",
-        model=f"ollama:{payload.model}",
-    )
-
-
 @api_router.post("/device/pair", response_model=DevicePairOut)
 async def pair_local_device(
     payload: DevicePairIn,
@@ -992,6 +958,34 @@ async def command(
             if provider_key and provider_name
             else get_language_model(await read_ai_model(session, user_id)).name
         ),
+    )
+
+
+@api_router.post("/commands/local-result", response_model=CommandOut)
+async def save_local_command_result(
+    payload: LocalCommandResultIn,
+    user_id: str | None = Depends(require_identity),
+    session: AsyncSession = Depends(get_session),
+) -> CommandOut:
+    try:
+        conversation, user_message, assistant_message = await save_device_command(
+            session,
+            payload.text,
+            payload.reply,
+            payload.conversation_id,
+            payload.model,
+            user_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return CommandOut(
+        conversation_id=conversation.id,
+        user_message=_message(user_message),
+        assistant_message=_message(assistant_message),
+        state="completed",
+        model=f"ollama:{payload.model}",
     )
 
 

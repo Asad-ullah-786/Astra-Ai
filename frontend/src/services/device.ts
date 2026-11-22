@@ -1,5 +1,5 @@
 import type { LocalApplication } from "../types/index.ts";
-import type { CommandResult, InstalledModel, SystemSnapshot } from "../types/index.ts";
+import type { InstalledModel, SystemSnapshot } from "../types/index.ts";
 
 const LOCAL_DEVICE_ORIGIN = "http://127.0.0.1:8787";
 const DEVICE_SESSION_KEY = "astra.localDeviceSession";
@@ -126,18 +126,5 @@ export function chatWithLocalAI(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, messages }),
-  });
-}
-
-export function saveLocalAICommand(payload: {
-  text: string;
-  reply: string;
-  conversation_id: string | null;
-  model: string;
-}): Promise<CommandResult> {
-  return localRequest<CommandResult>("/api/v1/device/ai/conversation", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
   });
 }

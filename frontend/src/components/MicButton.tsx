@@ -16,7 +16,7 @@ export function MicButton() {
           }
           void start();
         }}
-        className={`mic-control-button inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-display text-[0.62rem] tracking-[0.16em] ${
+        className={`mic-control-button inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-display text-[0.713rem] tracking-[0.16em] ${
           active
             ? "border-astra-danger bg-astra-danger/15 text-white"
             : "border-astra-cyan/40 text-astra-cyan"

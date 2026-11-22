@@ -230,7 +230,7 @@ export function TasksPage() {
                     aria-label={`${task.in_progress ? "Mark scheduled" : "Mark in progress"}: ${task.title}`}
                     disabled={saving}
                     onClick={() => void toggleTaskProgress(task)}
-                    className="mt-2 inline-flex items-center gap-1 rounded border border-astra-cyan/25 px-2 py-1 text-[10px] text-astra-cyan hover:bg-cyan-900/30 disabled:opacity-50"
+                    className="mt-2 inline-flex items-center gap-1 rounded border border-astra-cyan/25 px-2 py-1 text-[11.5px] text-astra-cyan hover:bg-cyan-900/30 disabled:opacity-50"
                   >
                     {task.in_progress ? <Pause className="size-3" /> : <Play className="size-3" />}
                     {task.in_progress ? "MARK SCHEDULED" : "MARK IN PROGRESS"}

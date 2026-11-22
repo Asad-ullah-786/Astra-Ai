@@ -137,7 +137,7 @@ export function CalendarPage() {
 
         <div className="mt-4 grid grid-cols-7 gap-1">
           {WEEKDAYS.map((day) => (
-            <span key={day} className="py-2 text-center font-mono text-[0.6rem] tracking-wider text-astra-muted">{day}</span>
+            <span key={day} className="py-2 text-center font-mono text-[0.69rem] tracking-wider text-astra-muted">{day}</span>
           ))}
           {days.map((day) => {
             const key = dateKey(day);

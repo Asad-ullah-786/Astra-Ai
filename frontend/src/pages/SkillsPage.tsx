@@ -42,7 +42,7 @@ export function SkillsPage() {
                     <span className="min-w-0 flex-1">
                       <strong className="block text-sm text-white">{name}</strong>
                       <small className="mt-1 block text-xs leading-5 text-astra-muted">{description}</small>
-                      <small className={`mt-2 block font-mono text-[0.62rem] ${status === "online" ? "text-astra-ok" : status === "offline" ? "text-astra-danger" : "text-amber-300"}`}>
+                      <small className={`mt-2 block font-mono text-[0.713rem] ${status === "online" ? "text-astra-ok" : status === "offline" ? "text-astra-danger" : "text-amber-300"}`}>
                         {status === "online" ? "AVAILABLE" : status.toUpperCase()}
                       </small>
                     </span>

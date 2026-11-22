@@ -51,7 +51,7 @@ export function ChatPage() {
             </span>
             <span>
               <h1 className="font-display text-sm tracking-[0.2em] text-white">AI CORE</h1>
-              <span className={`mt-1 block font-mono text-[0.65rem] ${modelReady ? "text-astra-ok" : "text-amber-300"}`}>
+              <span className={`mt-1 block font-mono text-[0.747rem] ${modelReady ? "text-astra-ok" : "text-amber-300"}`}>
                 {modelReady
                   ? `${isCloudSelected ? `${selectedProviderName} CLOUD MODEL` : ollamaModelLabel} · ${selectedModelName}`
                   : aiStatus?.connected
@@ -117,7 +117,7 @@ export function ChatPage() {
                   : isPairedLocalModel ? `Ask ${selectedModelName} on your paired PC anything.` : health?.cloud_deployment ? "Ask the selected hosted Ollama model anything." : "Ask the selected local model anything."}
             </p>
           </div>
-          <span className="rounded-full border border-white/10 px-2 py-1 font-mono text-[0.6rem] text-astra-muted">
+          <span className="rounded-full border border-white/10 px-2 py-1 font-mono text-[0.69rem] text-astra-muted">
             {state.toUpperCase()}
           </span>
         </div>

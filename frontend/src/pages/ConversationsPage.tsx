@@ -82,7 +82,7 @@ export function ConversationsPage() {
             placeholder="Search conversation titles..."
             className="min-w-0 flex-1 bg-transparent py-3 text-sm text-white outline-none placeholder:text-astra-muted"
           />
-          <span className="shrink-0 font-mono text-[0.65rem] text-astra-muted">{filtered.length} / {conversations.length}</span>
+          <span className="shrink-0 font-mono text-[0.747rem] text-astra-muted">{filtered.length} / {conversations.length}</span>
         </div>
 
         {error ? <p className="mt-3 text-sm text-astra-danger" role="alert">{error}</p> : null}
@@ -107,7 +107,7 @@ export function ConversationsPage() {
                 <strong className="block truncate text-sm text-white">{item.title}</strong>
                 <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-astra-muted">
                   <span className="inline-flex items-center gap-1"><Clock3 className="size-3" /> Updated {formatConversationDate(item.updated_at)}</span>
-                  {item.id === activeConversationId ? <span className="font-mono text-[0.62rem] text-astra-cyan">CURRENT CHAT</span> : null}
+                  {item.id === activeConversationId ? <span className="font-mono text-[0.713rem] text-astra-cyan">CURRENT CHAT</span> : null}
                 </span>
               </button>
               <button

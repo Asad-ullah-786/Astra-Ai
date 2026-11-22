@@ -12,7 +12,7 @@ export function MetricCard({
   return (
     <section className="glass rounded-2xl p-4">
       <div className="flex items-end justify-between gap-3">
-        <h2 className="font-display text-[0.68rem] tracking-[0.22em] text-astra-cyan">{label}</h2>
+        <h2 className="font-display text-[0.782rem] tracking-[0.22em] text-astra-cyan">{label}</h2>
         <p className="font-mono text-xl text-white">{value}</p>
       </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">

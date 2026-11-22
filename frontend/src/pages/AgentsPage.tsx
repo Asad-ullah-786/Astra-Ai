@@ -43,12 +43,12 @@ export function AgentsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <h3 className="text-sm font-semibold text-astra-text">{name}</h3>
-                    <span className={`font-mono text-[0.62rem] ${status === "online" ? "text-astra-ok" : status === "offline" ? "text-astra-danger" : "text-amber-300"}`}>
+                    <span className={`font-mono text-[0.713rem] ${status === "online" ? "text-astra-ok" : status === "offline" ? "text-astra-danger" : "text-amber-300"}`}>
                       {statusLabel(status)}
                     </span>
                   </div>
                   <p className="mt-1 text-xs leading-5 text-astra-muted">{description}</p>
-                  <p className="mt-1 text-[0.68rem] text-astra-muted">{module?.summary ?? "Waiting for ASTRA service status."}</p>
+                  <p className="mt-1 text-[0.782rem] text-astra-muted">{module?.summary ?? "Waiting for ASTRA service status."}</p>
                 </div>
                 <NavLink
                   to={to}

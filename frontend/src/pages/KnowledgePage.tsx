@@ -40,7 +40,7 @@ export function KnowledgePage() {
                 <strong className="truncate">{item.title}</strong>
               </div>
               <p className="mt-2 whitespace-pre-wrap break-words text-sm text-astra-muted">{item.content}</p>
-              <time className="mt-2 block font-mono text-[0.65rem] text-slate-500">
+              <time className="mt-2 block font-mono text-[0.747rem] text-slate-500">
                 Updated {new Date(item.updated_at).toLocaleDateString()}
               </time>
             </li>

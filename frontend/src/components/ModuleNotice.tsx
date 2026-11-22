@@ -8,7 +8,7 @@ export function ModuleNotice({ moduleId }: { moduleId: string }) {
 
   return (
     <section className="glass rounded-2xl p-5">
-      <p className="font-display text-[0.68rem] tracking-[0.22em] text-astra-cyan">
+      <p className="font-display text-[0.782rem] tracking-[0.22em] text-astra-cyan">
         {module ? `PHASE ${module.phase}` : "MODULE"}
       </p>
       <h2 className="mt-2 font-display text-lg tracking-[0.12em] text-white">

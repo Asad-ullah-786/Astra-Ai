@@ -16,7 +16,7 @@ function ThinkingIndicator() {
 function ThinkingMessage() {
   return (
     <article className="chat-thinking-message rounded-xl border border-white/10 bg-black/30 p-3">
-      <p className="font-display text-[0.62rem] tracking-[0.18em] text-astra-cyan">ASTRA</p>
+      <p className="font-display text-[0.713rem] tracking-[0.18em] text-astra-cyan">ASTRA</p>
       <ThinkingIndicator />
     </article>
   );
@@ -49,7 +49,7 @@ export function ConversationPanel({
 
         return (
           <article key={message.id} className="rounded-xl border border-white/10 bg-black/30 p-3">
-            <p className="font-display text-[0.62rem] tracking-[0.18em] text-astra-cyan">
+            <p className="font-display text-[0.713rem] tracking-[0.18em] text-astra-cyan">
               {message.role === "user" ? "YOU" : "ASTRA"}
             </p>
             <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>

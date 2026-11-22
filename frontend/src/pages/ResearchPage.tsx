@@ -67,7 +67,7 @@ export function ResearchPage() {
                     {result.title}
                   </a>
                   {result.snippet ? <p className="mt-1 text-sm text-astra-muted">{result.snippet}</p> : null}
-                  <p className="mt-1 break-all font-mono text-[0.65rem] text-astra-muted">{result.url}</p>
+                  <p className="mt-1 break-all font-mono text-[0.747rem] text-astra-muted">{result.url}</p>
                 </li>
               ))}
             </ol>

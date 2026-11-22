@@ -7,6 +7,8 @@ import { useAstra } from "../hooks/useAstra.ts";
 export function ChatPage() {
   const {
     aiStatus,
+    localAIStatus,
+    localSelectedModel,
     health,
     online,
     messages,
@@ -17,22 +19,26 @@ export function ChatPage() {
   } = useAstra();
   const geminiStatus = aiStatus?.gemini;
   const openaiStatus = aiStatus?.openai;
-  const isGeminiSelected = Boolean(aiStatus?.selected_model?.startsWith("gemini:"));
-  const isOpenAISelected = Boolean(aiStatus?.selected_model?.startsWith("openai:"));
+  const selectedModel = localSelectedModel ?? aiStatus?.selected_model ?? null;
+  const isPairedLocalModel = Boolean(health?.cloud_deployment && localSelectedModel);
+  const isGeminiSelected = Boolean(selectedModel?.startsWith("gemini:"));
+  const isOpenAISelected = Boolean(selectedModel?.startsWith("openai:"));
   const isCloudSelected = isGeminiSelected || isOpenAISelected;
   const selectedCloudStatus = isOpenAISelected ? openaiStatus : geminiStatus;
   const selectedPrefix = isOpenAISelected ? "openai:" : "gemini:";
   const modelReady = Boolean(
-    aiStatus?.selected_model &&
-      (isCloudSelected
-        ? selectedCloudStatus?.connected && selectedCloudStatus.models.includes(aiStatus.selected_model.slice(selectedPrefix.length))
-        : aiStatus.connected && aiStatus.models.some((model) => model.name === aiStatus.selected_model)),
+    selectedModel &&
+      (isPairedLocalModel
+        ? localAIStatus?.connected && localAIStatus.models.some((model) => model.name === selectedModel)
+        : isCloudSelected
+        ? selectedCloudStatus?.connected && selectedCloudStatus.models.includes(selectedModel.slice(selectedPrefix.length))
+        : aiStatus?.connected && aiStatus.models.some((model) => model.name === selectedModel)),
   );
   const selectedModelName = isCloudSelected
-    ? aiStatus?.selected_model?.slice(selectedPrefix.length)
-    : aiStatus?.selected_model;
+    ? selectedModel?.slice(selectedPrefix.length)
+    : selectedModel;
   const selectedProviderName = isOpenAISelected ? "OPENAI" : "GEMINI";
-  const ollamaModelLabel = health?.cloud_deployment ? "HOSTED OLLAMA MODEL" : "LOCAL MODEL";
+  const ollamaModelLabel = health?.cloud_deployment ? "PAIRED PC OLLAMA MODEL" : "LOCAL MODEL";
   const busy = state === "processing" || state === "thinking" || state === "speaking";
 
   return (
@@ -50,10 +56,12 @@ export function ChatPage() {
                   ? `${isCloudSelected ? `${selectedProviderName} CLOUD MODEL` : ollamaModelLabel} · ${selectedModelName}`
                   : aiStatus?.connected
                     ? "OLLAMA CONNECTED · SELECT A MODEL"
+                    : isPairedLocalModel
+                    ? "PAIRED PC OLLAMA DISCONNECTED"
                     : isCloudSelected && selectedCloudStatus?.configured
                       ? `${selectedProviderName} API UNAVAILABLE`
                     : online
-                      ? health?.cloud_deployment ? "SELECT A CLOUD OR HOSTED MODEL" : "LOCAL MODEL UNAVAILABLE"
+                    ? health?.cloud_deployment ? "SELECT A CLOUD MODEL OR CONNECT PC OLLAMA" : "LOCAL MODEL UNAVAILABLE"
                       : "CONNECTING TO ASTRA"}
               </span>
             </span>
@@ -84,8 +92,10 @@ export function ChatPage() {
           <p className="mt-4 rounded-lg border border-amber-300/15 bg-amber-950/10 px-3 py-2 text-xs leading-5 text-amber-100/80" role="status">
             {isCloudSelected
               ? selectedCloudStatus?.error ?? `Choose a connected ${selectedProviderName} model in Model settings.`
+            : isPairedLocalModel
+              ? "The paired PC Ollama is not available. Start the ASTRA companion and keep this browser paired."
               : health?.cloud_deployment && !aiStatus?.selected_model
-                ? "Choose a connected Gemini/OpenAI model, or configure hosted Ollama in Model settings."
+              ? "Choose a connected Gemini/OpenAI model, or select an installed model from your paired PC in Model settings."
                 : aiStatus?.error ?? `Chat responses need an installed ${health?.cloud_deployment ? "hosted Ollama" : "local Ollama"} model selected in Model settings.`}
           </p>
         ) : null}
@@ -101,10 +111,10 @@ export function ChatPage() {
               {messages.length
                 ? isCloudSelected
                   ? `Your conversation is sent to ${isOpenAISelected ? "OpenAI" : "Google Gemini"}.`
-                  : health?.cloud_deployment ? "Your conversation is sent to the configured hosted Ollama server." : "Your local conversation continues here."
+                  : isPairedLocalModel ? `Your conversation uses ${selectedModelName} on your paired PC.` : health?.cloud_deployment ? "Your conversation is sent to the configured hosted Ollama server." : "Your local conversation continues here."
                 : isCloudSelected
                   ? `Ask the selected ${isOpenAISelected ? "OpenAI" : "Gemini"} model anything.`
-                  : health?.cloud_deployment ? "Ask the selected hosted Ollama model anything." : "Ask the selected local model anything."}
+                  : isPairedLocalModel ? `Ask ${selectedModelName} on your paired PC anything.` : health?.cloud_deployment ? "Ask the selected hosted Ollama model anything." : "Ask the selected local model anything."}
             </p>
           </div>
           <span className="rounded-full border border-white/10 px-2 py-1 font-mono text-[0.6rem] text-astra-muted">

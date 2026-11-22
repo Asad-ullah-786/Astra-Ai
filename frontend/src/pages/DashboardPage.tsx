@@ -227,11 +227,11 @@ export function DashboardPage() {
         ...aiStatus,
         connected: health?.cloud_deployment ? Boolean(localAIStatus?.connected) : aiStatus.connected,
         models: health?.cloud_deployment ? localAIStatus?.models ?? [] : aiStatus.models,
-        selected_model: health?.cloud_deployment ? localSelectedModel : aiStatus.selected_model,
+        selected_model: health?.cloud_deployment ? localSelectedModel ?? aiStatus.selected_model : aiStatus.selected_model,
       }
     : null;
   const llmStatusCards = getLLMStatusCards(
-    aiStatus,
+    dashboardAIStatus,
     health?.cloud_deployment
       ? localClientAvailability
         ? {

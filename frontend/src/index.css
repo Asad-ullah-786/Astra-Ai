@@ -5069,9 +5069,9 @@ button.llm-model:not(:disabled):focus-visible {
 }
 
 * {
-  scrollbar-width: none;
+  scrollbar-width: none !important;
 }
 
 *::-webkit-scrollbar {
-  display: none;
+  display: none !important;
 }

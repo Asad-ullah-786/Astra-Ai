@@ -182,7 +182,14 @@ export function AstraProvider({ children }: { children: ReactNode }) {
               setLocalAIStatus(null);
             }
           }
-          if (!stopped) setConnectionError(null);
+          if (!stopped) {
+            setConnectionError((current) =>
+              current?.startsWith("Guest access is required") ||
+              current?.startsWith("This backend requires an API token.")
+                ? current
+                : null,
+            );
+          }
         } catch (error) {
           if (!stopped) {
             setStats(null);

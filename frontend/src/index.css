@@ -730,6 +730,19 @@ textarea {
   font-size: 0.977rem;
 }
 
+.astra-profile-hint,
+.astra-profile-error {
+  margin: 0.1rem 0 0.35rem;
+  padding: 0 0.45rem;
+  color: #9ab2c6;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.astra-profile-error {
+  color: #ff8291;
+}
+
 .astra-menu-link {
   display: flex;
   min-width: 0;
@@ -1837,6 +1850,12 @@ textarea {
   align-content: stretch;
   gap: 0.2rem;
   overflow: auto;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+
+.llm-model-grid::-webkit-scrollbar {
+  display: none;
 }
 
 .llm-model {
@@ -2084,6 +2103,28 @@ button.llm-model:not(:disabled):focus-visible {
 .llm-check {
   flex: 0 0 auto;
   color: #4be0b8;
+}
+
+.llm-model {
+  min-height: 2.8rem;
+  gap: 0.4rem;
+  padding: 0.3rem 0.38rem;
+}
+
+.llm-provider-icon {
+  width: 1.65rem;
+  height: 1.65rem;
+}
+
+.llm-model strong {
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.llm-model small {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  white-space: normal;
 }
 
 .llm-empty {
@@ -5074,4 +5115,105 @@ button.llm-model:not(:disabled):focus-visible {
 
 *::-webkit-scrollbar {
   display: none !important;
+}
+
+.llm-model-grid {
+  display: grid;
+  min-height: 0;
+  grid-auto-rows: minmax(4rem, auto);
+  align-content: start;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
+}
+
+.llm-model-grid::-webkit-scrollbar {
+  display: none !important;
+}
+
+.llm-model {
+  width: auto;
+  flex: initial;
+  min-width: 0;
+  min-height: 3.8rem;
+  gap: 0.55rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.llm-provider-icon {
+  width: 2rem !important;
+  height: 2rem !important;
+}
+
+.llm-model strong {
+  font-size: 1rem !important;
+  line-height: 1.25;
+}
+
+.llm-model small {
+  font-size: 0.78rem !important;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.ai-overview-panel .ai-model-list {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.ai-overview-panel .ai-model-list::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-overview-panel .ai-model-row,
+.ai-overview-panel .ai-unavailable {
+  min-height: 3.15rem;
+  flex: 0 0 auto;
+  gap: 0.55rem;
+  padding: 0.4rem 0.5rem;
+}
+
+.ai-overview-panel .ai-model-orb {
+  width: 2rem;
+  height: 2rem;
+}
+
+.ai-overview-panel .ai-model-copy strong,
+.ai-overview-panel .ai-unavailable strong {
+  font-size: 0.95rem;
+}
+
+.ai-overview-panel .ai-model-copy small,
+.ai-overview-panel .ai-unavailable small {
+  font-size: 0.72rem;
+}
+
+@media (min-width: 1151px) {
+  .llm-model-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1150px) {
+  .dashboard-row-bottom > .llm-panel {
+    min-height: 15rem;
+  }
+
+  .llm-model-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-height: 13rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-row-bottom > .llm-panel {
+    min-height: 17rem;
+  }
+
+  .llm-model-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 13rem;
+  }
 }

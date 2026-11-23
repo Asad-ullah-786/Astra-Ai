@@ -26,6 +26,7 @@ import { CommandBar } from "../components/CommandBar.tsx";
 import { Waveform } from "../components/Waveform.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
 import { useClock } from "../hooks/useClock.ts";
+import { isAuthenticationRequired } from "../lib/authState.ts";
 import {
   apiGet,
   clearPersonalProviderCredentials,
@@ -86,6 +87,7 @@ export function AppShell() {
     commandError,
     sendCommand,
     connectionError,
+    activityError,
     refresh,
     saveApiToken,
   } = useAstra();
@@ -106,15 +108,16 @@ export function AppShell() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const appMenuRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
-  const displayName = settings?.user_display_name ?? "Operator";
   const clock = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const date = now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const pendingTaskCount = tasks.filter((task) => !task.completed).length;
-  const tokenRequired = Boolean(
-    health?.auth_required &&
-    (connectionError?.startsWith("Guest access is required") ||
-      connectionError?.startsWith("This backend requires an API token.")),
+  const tokenRequired = isAuthenticationRequired(
+    health?.auth_required ?? false,
+    Boolean(getApiToken()),
+    connectionError,
+    activityError,
   );
+  const displayName = tokenRequired ? "Signed out" : settings?.user_display_name ?? "Operator";
 
   useEffect(() => {
     const updateNetwork = () => setNetworkOnline(navigator.onLine);
@@ -195,6 +198,7 @@ export function AppShell() {
       saveApiToken(session.access_token);
       await apiGet("/api/v1/settings");
       await refresh();
+      setProfileMenuOpen(false);
     } catch (error) {
       setTokenError(error instanceof Error ? error.message : "Could not create a guest workspace.");
     } finally {
@@ -350,8 +354,27 @@ export function AppShell() {
               </button>
               {profileMenuOpen ? (
                 <div className="astra-header-dropdown astra-profile-dropdown">
-                  <span className="astra-profile-caption">{health?.cloud_deployment ? "ASTRA ACCOUNT" : "LOCAL ASTRA PROFILE"}</span>
-                  <strong>{displayName}</strong>
+                  <span className="astra-profile-caption">
+                    {health?.cloud_deployment ? (tokenRequired ? "ASTRA · SIGNED OUT" : "ASTRA ACCOUNT") : "LOCAL ASTRA PROFILE"}
+                  </span>
+                  <strong>{tokenRequired ? "No active session" : displayName}</strong>
+                  {tokenRequired && health?.cloud_deployment ? (
+                    <>
+                      <p className="astra-profile-hint">
+                        ASTRA currently supports private guest workspaces. Continue as guest to start a new session.
+                      </p>
+                      <button
+                        type="button"
+                        className="astra-menu-link"
+                        disabled={tokenSubmitting}
+                        onClick={() => void continueAsGuest()}
+                      >
+                        <ShieldCheck className="size-4" />
+                        <span>{tokenSubmitting ? "Starting guest session..." : "Sign in / Continue as guest"}</span>
+                      </button>
+                      {tokenError ? <p className="astra-profile-error" role="alert">{tokenError}</p> : null}
+                    </>
+                  ) : null}
                   <NavLink to="/settings" className="astra-menu-link" onClick={() => setProfileMenuOpen(false)}>
                     <Settings className="size-4" />
                     <span>Profile & settings</span>
@@ -360,13 +383,15 @@ export function AppShell() {
                     <Bell className="size-4" />
                     <span>Activity history</span>
                   </NavLink>
-                  {health?.cloud_deployment ? (
+                  {health?.cloud_deployment && !tokenRequired ? (
                     <button
                       type="button"
                       className="astra-menu-link"
                       onClick={() => {
                         clearPersonalProviderCredentials();
                         saveApiToken("");
+                        setApiToken("");
+                        setTokenError("");
                         setProfileMenuOpen(false);
                       }}
                     >

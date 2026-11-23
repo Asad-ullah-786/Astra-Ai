@@ -1628,7 +1628,7 @@ textarea {
   gap: 0.28rem;
 }
 
-.quick-panel > .panel-content {
+.quick-panel .panel-content {
   min-height: 0;
   flex: 1 1 auto;
   overflow-x: hidden;
@@ -1639,7 +1639,7 @@ textarea {
   touch-action: pan-y;
 }
 
-.quick-panel > .panel-content::-webkit-scrollbar {
+.quick-panel .panel-content::-webkit-scrollbar {
   display: none;
 }
 
@@ -5188,6 +5188,107 @@ button.llm-model:not(:disabled):focus-visible {
 .ai-overview-panel .ai-model-copy small,
 .ai-overview-panel .ai-unavailable small {
   font-size: 0.72rem;
+}
+
+.astra-brand > span:last-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.astra-brand strong {
+  font-size: 1.08rem;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.scroll-hint-frame,
+.scroll-hint-area {
+  position: relative;
+  min-height: 0;
+}
+
+.scroll-hint-frame {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.scroll-hint-frame > .ai-model-list,
+.scroll-hint-frame > .llm-model-grid {
+  width: 100%;
+}
+
+.scroll-hint-frame.has-scroll-hint {
+  padding-bottom: 1.65rem;
+}
+
+.panel-scroll-hint-frame > .panel-content {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.astra-brand small {
+  font-size: 0.5rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.scroll-hint-indicator {
+  position: absolute;
+  z-index: 3;
+  bottom: 0.28rem;
+  left: 50%;
+  display: grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  place-items: center;
+  transform: translateX(-50%);
+  border: 1px solid rgba(62, 224, 255, 0.48);
+  border-radius: 50%;
+  color: #b6f6ff;
+  background: rgba(3, 18, 33, 0.92);
+  box-shadow: 0 0 12px rgba(31, 188, 255, 0.35);
+  pointer-events: none;
+}
+
+.scroll-hint-indicator.is-down {
+  animation: scroll-hint-down 950ms ease-in-out infinite;
+}
+
+.scroll-hint-indicator.is-up {
+  animation: scroll-hint-up 950ms ease-in-out infinite;
+}
+
+@keyframes scroll-hint-down {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: translate(-50%, -2px);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, 3px);
+  }
+}
+
+@keyframes scroll-hint-up {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: translate(-50%, 3px);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-hint-indicator {
+    animation: none;
+  }
 }
 
 @media (min-width: 1151px) {

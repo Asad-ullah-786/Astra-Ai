@@ -32,7 +32,9 @@ import {
 import { NavLink, useNavigate } from "react-router";
 import { AstraCore } from "../components/AstraCore.tsx";
 import { Panel } from "../components/Panel.tsx";
+import { ScrollHintArrow } from "../components/ScrollHintArrow.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
+import { useScrollHint } from "../hooks/useScrollHint.ts";
 import { formatGigabytes, formatPercent } from "../lib/format.ts";
 import { launchApplication } from "../services/api.ts";
 import { captureScreenFrame, downloadBlob } from "../services/screenshot.ts";
@@ -252,6 +254,16 @@ export function DashboardPage() {
   const [agentActionMessage, setAgentActionMessage] = useState("");
   const [missionRange, setMissionRange] = useState<MissionRange>("today");
   const [now] = useState(() => new Date());
+  const {
+    scrollRef: aiModelScrollRef,
+    isScrollable: aiModelsScrollable,
+    hasScrolled: hasScrolledAiModels,
+  } = useScrollHint();
+  const {
+    scrollRef: llmModelScrollRef,
+    isScrollable: llmModelsScrollable,
+    hasScrolled: hasScrolledLlmModels,
+  } = useScrollHint();
   const timelineTasks = getTimelineTasks(tasks, missionRange, now);
   const agentSetupCard = agentSetup
     ? llmStatusCards.find((card) => card.id === agentSetup)
@@ -304,28 +316,31 @@ export function DashboardPage() {
     <div className="astra-dashboard">
       <div className="dashboard-row dashboard-row-top">
         <Panel title="AI CORE OVERVIEW" className="dashboard-panel ai-overview-panel">
-          <div className="ai-model-list">
-            {localModelCards.map((card) => {
-              const Icon = LOCAL_MODEL_STATUS_ICONS[card.id];
-              return (
-                <div
-                  className={`ai-model-row ${card.selected ? "is-selected" : ""}`}
-                  data-model={card.id}
-                  data-state={card.state}
-                  key={card.id}
-                  title={card.modelName ? `${card.modelName}${card.selected ? " · selected" : ""}` : card.status}
-                >
-                  <span className={`ai-model-orb ${card.state === "unavailable" ? "is-muted" : ""}`} data-model={card.id}>
-                    <Icon className="size-4" />
-                  </span>
-                  <span className="ai-model-copy">
-                    <strong>{health?.cloud_deployment && card.id === "ollama" ? "This PC · Ollama" : card.name}</strong>
-                    <small>{card.status}</small>
-                  </span>
-                  <i className={`status-light ${card.state === "connected" || card.state === "available" ? "is-green" : ""}`} />
-                </div>
-              );
-            })}
+          <div className={`scroll-hint-frame ${aiModelsScrollable ? "has-scroll-hint" : ""}`}>
+            <div className="ai-model-list" ref={aiModelScrollRef}>
+              {localModelCards.map((card) => {
+                const Icon = LOCAL_MODEL_STATUS_ICONS[card.id];
+                return (
+                  <div
+                    className={`ai-model-row ${card.selected ? "is-selected" : ""}`}
+                    data-model={card.id}
+                    data-state={card.state}
+                    key={card.id}
+                    title={card.modelName ? `${card.modelName}${card.selected ? " · selected" : ""}` : card.status}
+                  >
+                    <span className={`ai-model-orb ${card.state === "unavailable" ? "is-muted" : ""}`} data-model={card.id}>
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="ai-model-copy">
+                      <strong>{health?.cloud_deployment && card.id === "ollama" ? "This PC · Ollama" : card.name}</strong>
+                      <small>{card.status}</small>
+                    </span>
+                    <i className={`status-light ${card.state === "connected" || card.state === "available" ? "is-green" : ""}`} />
+                  </div>
+                );
+              })}
+            </div>
+            {aiModelsScrollable ? <ScrollHintArrow hasScrolled={hasScrolledAiModels} /> : null}
           </div>
           <NavLink to="/settings" className="panel-action">Manage providers <ArrowRight className="size-3" /></NavLink>
         </Panel>
@@ -447,7 +462,7 @@ export function DashboardPage() {
           <NavLink to="/calendar" className="panel-action">View full schedule <ArrowRight className="size-3" /></NavLink>
         </Panel>
 
-        <Panel title="QUICK COMMANDS" className="dashboard-panel quick-panel">
+        <Panel title="QUICK COMMANDS" className="dashboard-panel quick-panel" scrollHint>
           {health?.cloud_deployment ? (
             <>
               <QuickExternalLink href="/automation" label="Pair Local Device" icon={PlugZap} />
@@ -519,43 +534,46 @@ export function DashboardPage() {
               <i /> {aiStatus == null ? "CHECKING" : providerConnected ? "CONNECTED" : "ALL OFFLINE"}
             </span>
           </div>
-          <div className="llm-model-grid">
-            {llmStatusCards.map((card) => {
-              const Icon = LLM_STATUS_ICONS[card.id];
-              const isAgentCard = card.id === "cursor" || card.id === "copilot";
-              return (
-                <button
-                  type="button"
-                  className="llm-model"
-                  data-state={card.state}
-                  key={card.id}
-                  onClick={() => {
-                    if (isAgentCard) {
-                      setAgentActionMessage("");
-                      setAgentSetup(card.id as "cursor" | "copilot");
-                      return;
-                    }
-                    if (card.id === "browser_agent") {
-                      navigate("/automation");
-                      return;
-                    }
-                    const provider = card.id === "mistral"
-                      || card.id === "llama"
-                      || card.id === "qwen"
-                      || card.id === "deepseek"
-                      || card.id === "phi"
-                      ? "ollama"
-                      : card.id;
-                    navigate(`/settings?provider=${provider}`);
-                  }}
-                  aria-label={`View ${card.name} settings and details`}
-                >
-                  <span className="llm-provider-icon" data-provider={card.id}><Icon className="size-3.5" /></span>
-                  <span><strong>{card.name}</strong><small>{card.status}</small></span>
-                  {card.state === "connected" ? <CheckCircle2 className="llm-check size-3.5" /> : null}
-                </button>
-              );
-            })}
+          <div className={`scroll-hint-frame ${llmModelsScrollable ? "has-scroll-hint" : ""}`}>
+            <div className="llm-model-grid" ref={llmModelScrollRef}>
+              {llmStatusCards.map((card) => {
+                const Icon = LLM_STATUS_ICONS[card.id];
+                const isAgentCard = card.id === "cursor" || card.id === "copilot";
+                return (
+                  <button
+                    type="button"
+                    className="llm-model"
+                    data-state={card.state}
+                    key={card.id}
+                    onClick={() => {
+                      if (isAgentCard) {
+                        setAgentActionMessage("");
+                        setAgentSetup(card.id as "cursor" | "copilot");
+                        return;
+                      }
+                      if (card.id === "browser_agent") {
+                        navigate("/automation");
+                        return;
+                      }
+                      const provider = card.id === "mistral"
+                        || card.id === "llama"
+                        || card.id === "qwen"
+                        || card.id === "deepseek"
+                        || card.id === "phi"
+                        ? "ollama"
+                        : card.id;
+                      navigate(`/settings?provider=${provider}`);
+                    }}
+                    aria-label={`View ${card.name} settings and details`}
+                  >
+                    <span className="llm-provider-icon" data-provider={card.id}><Icon className="size-3.5" /></span>
+                    <span><strong>{card.name}</strong><small>{card.status}</small></span>
+                    {card.state === "connected" ? <CheckCircle2 className="llm-check size-3.5" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+            {llmModelsScrollable ? <ScrollHintArrow hasScrolled={hasScrolledLlmModels} /> : null}
           </div>
           <NavLink to="/settings" className="panel-action">Manage providers <ArrowRight className="size-3" /></NavLink>
         </Panel>

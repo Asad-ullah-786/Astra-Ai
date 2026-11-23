@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="440" viewBox="0 0 1000 440" fill="none">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1000" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08182D"/>
+      <stop offset="1" stop-color="#030811"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0B213B"/>
+      <stop offset="1" stop-color="#050D19"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="1000" height="440" rx="22" fill="url(#background)"/>
+  <rect x="1" y="1" width="998" height="438" rx="21" stroke="#1B6D93" stroke-opacity=".65" stroke-width="2"/>
+  <text x="34" y="48" fill="#63E5FF" font-family="Arial, sans-serif" font-size="21" font-weight="700" letter-spacing="2">WHERE TO FIND YOUR 8-CHARACTER CODE</text>
+
+  <rect x="30" y="76" width="442" height="284" rx="14" fill="url(#panel)" stroke="#247CA2" stroke-width="2"/>
+  <rect x="30" y="76" width="442" height="42" rx="14" fill="#122A43"/>
+  <path d="M30 104h442v14H30z" fill="#122A43"/>
+  <circle cx="53" cy="97" r="5" fill="#FF7180"/>
+  <circle cx="72" cy="97" r="5" fill="#FFC56E"/>
+  <circle cx="91" cy="97" r="5" fill="#55E5B8"/>
+  <text x="118" y="103" fill="#B7CAE0" font-family="Arial, sans-serif" font-size="15">ASTRA Windows Companion</text>
+  <text x="52" y="153" fill="#75D9F0" font-family="Arial, sans-serif" font-size="16" font-weight="700" letter-spacing="1">1 - START THE COMPANION</text>
+  <text x="52" y="190" fill="#C5D6E8" font-family="Consolas, monospace" font-size="14">ASTRA local device pairing code</text>
+  <text x="52" y="215" fill="#91A9C0" font-family="Consolas, monospace" font-size="13">(one use, expires in 5 minutes):</text>
+  <rect x="51" y="232" width="400" height="69" rx="9" fill="#02070D" stroke="#236384"/>
+  <text x="72" y="278" fill="#64E8FF" font-family="Consolas, monospace" font-size="34" font-weight="700" letter-spacing="4" filter="url(#glow)">A1B2C3D4</text>
+  <text x="52" y="331" fill="#F4C975" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing=".7">EXAMPLE ONLY -- NOT A REAL PAIRING CODE</text>
+
+  <path d="M484 218h34m-12-12 12 12-12 12" stroke="#52DDF8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="528" y="76" width="442" height="284" rx="14" fill="url(#panel)" stroke="#247CA2" stroke-width="2"/>
+  <text x="552" y="111" fill="#75D9F0" font-family="Arial, sans-serif" font-size="16" font-weight="700" letter-spacing="1">2 - ENTER IT ON THE AUTOMATION PAGE</text>
+  <text x="552" y="164" fill="#B8CAE0" font-family="Arial, sans-serif" font-size="15">One-use pairing code</text>
+  <rect x="552" y="180" width="394" height="57" rx="9" fill="#02070D" stroke="#367F9E" stroke-width="2"/>
+  <text x="573" y="217" fill="#D5E7F5" font-family="Consolas, monospace" font-size="25" letter-spacing="3">A1B2C3D4</text>
+  <rect x="552" y="255" width="394" height="57" rx="9" fill="#07374D" stroke="#2DA9C8" stroke-width="2"/>
+  <text x="749" y="291" fill="#8CF0FF" font-family="Arial, sans-serif" font-size="17" font-weight="700" text-anchor="middle" letter-spacing="1">PAIR DEVICE</text>
+  <text x="552" y="339" fill="#91A9C0" font-family="Arial, sans-serif" font-size="14">Copy the fresh code from the console, then enter it here.</text>
+
+  <text x="34" y="405" fill="#A4BCD2" font-family="Arial, sans-serif" font-size="14">The example above is illustrative. Your companion prints a different code; use it within 5 minutes and keep its window open.</text>
+</svg>

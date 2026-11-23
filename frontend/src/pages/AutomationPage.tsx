@@ -165,12 +165,14 @@ export function AutomationPage() {
                 </li>
                 <li>
                   <strong className="text-white">Install the companion once.</strong>{" "}
-                  Open that folder and double-click <code>install_companion.bat</code>. Wait for it to finish.
-                  If you have already installed it, skip this step.
+                  Open that folder and double-click <code>install_companion.bat</code>. It needs Python 3.11 and will install the companion dependencies.
+                  If it reports that Python 3.11 is missing, install Python 3.11 and run it again. If you have already installed the companion, skip this step.
                 </li>
                 <li>
                   <strong className="text-white">Start the companion.</strong>{" "}
-                  Double-click <code>start_companion.bat</code>. Keep its console window open; copy the fresh 8-character pairing code shown there.
+                  Double-click <code>start_companion.bat</code>. A separate black window titled <strong>ASTRA Windows Companion</strong> opens.
+                  Wait for the line beginning <code>ASTRA local device pairing code</code>, then copy only the 8 characters after the colon.
+                  The code uses 0-9 and A-F, appears in that window (not on this website), expires in 5 minutes, and works once. Keep the window open.
                 </li>
                 <li>
                   <strong className="text-white">Allow this browser to reach your PC.</strong>{" "}
@@ -178,9 +180,19 @@ export function AutomationPage() {
                 </li>
                 <li>
                   <strong className="text-white">Pair this tab.</strong>{" "}
-                  Enter the code below and click <strong>PAIR DEVICE</strong>. This authorizes direct opens of allowlisted apps and public websites on this PC until you disconnect or the 12-hour session expires. The code expires after 5 minutes and can only be used once.
+                  Enter the code below and click <strong>PAIR DEVICE</strong> within 5 minutes. This authorizes direct opens of allowlisted apps and public websites on this PC until you disconnect or the 12-hour session expires.
                 </li>
               </ol>
+              <figure className="mb-4 overflow-hidden rounded-xl border border-astra-cyan/20 bg-black/20">
+                <img
+                  src="/pairing-guide.svg"
+                  alt="Illustration showing the temporary pairing code in the ASTRA Windows Companion console and where to enter it on the Automation page. The pictured code is only an example."
+                  className="block h-auto w-full"
+                />
+                <figcaption className="px-3 py-2 text-xs leading-5 text-astra-muted">
+                  Example only - your real code appears in the companion window after it starts. If it expires, close and restart the companion to get a fresh code.
+                </figcaption>
+              </figure>
               <a
                 href="https://github.com/Asad-ullah-786/Astra-Ai/archive/refs/heads/main.zip"
                 target="_blank"

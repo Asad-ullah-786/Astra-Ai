@@ -1020,6 +1020,15 @@ textarea {
   color: #c2f6ff;
 }
 
+.dashboard-panel .panel-action.manage-providers-action {
+  align-self: flex-end;
+  width: fit-content;
+  margin-left: auto;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.45rem;
+  background: rgba(3, 18, 33, 0.78);
+}
+
 .ai-model-list {
   display: flex;
   min-height: 0;
@@ -5244,13 +5253,22 @@ button.llm-model:not(:disabled):focus-visible {
   width: 1.65rem;
   height: 1.65rem;
   place-items: center;
+  padding: 0;
   transform: translateX(-50%);
-  border: 1px solid rgba(62, 224, 255, 0.48);
-  border-radius: 50%;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: 0;
   color: #b6f6ff;
-  background: rgba(3, 18, 33, 0.92);
-  box-shadow: 0 0 12px rgba(31, 188, 255, 0.35);
-  pointer-events: none;
+  background: none;
+  box-shadow: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.scroll-hint-indicator:focus-visible {
+  outline: 2px solid #63e5ff;
+  outline-offset: 3px;
 }
 
 .scroll-hint-indicator.is-down {
@@ -5288,6 +5306,28 @@ button.llm-model:not(:disabled):focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .scroll-hint-indicator {
     animation: none;
+  }
+}
+
+.astra-success-toast {
+  position: fixed;
+  z-index: 1000;
+  top: 5.25rem;
+  right: 1rem;
+  max-width: min(28rem, calc(100vw - 2rem));
+  border: 1px solid rgba(81, 232, 183, 0.45);
+  border-radius: 0.75rem;
+  padding: 0.7rem 1rem;
+  color: #b7ffe3;
+  background: rgba(3, 18, 30, 0.96);
+  box-shadow: 0 0.5rem 1.6rem rgba(0, 0, 0, 0.38), 0 0 1rem rgba(81, 232, 183, 0.12);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .astra-success-toast {
+    top: 4.5rem;
+    right: 0.65rem;
   }
 }
 

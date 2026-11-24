@@ -27,6 +27,7 @@ import { Waveform } from "../components/Waveform.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
 import { useClock } from "../hooks/useClock.ts";
 import { isAuthenticationRequired } from "../lib/authState.ts";
+import { notifySuccess, onSuccessNotification } from "../lib/notifications.ts";
 import {
   apiGet,
   clearPersonalProviderCredentials,
@@ -104,6 +105,7 @@ export function AppShell() {
   const [apiToken, setApiToken] = useState(() => getApiToken());
   const [tokenSubmitting, setTokenSubmitting] = useState(false);
   const [tokenError, setTokenError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [appMenuOpen, setAppMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const appMenuRef = useRef<HTMLDivElement>(null);
@@ -118,6 +120,19 @@ export function AppShell() {
     activityError,
   );
   const displayName = tokenRequired ? "Signed out" : settings?.user_display_name ?? "Operator";
+
+  useEffect(() => {
+    let timeout: number | undefined;
+    const unsubscribe = onSuccessNotification((message) => {
+      setSuccessMessage(message);
+      if (timeout !== undefined) window.clearTimeout(timeout);
+      timeout = window.setTimeout(() => setSuccessMessage(""), 3500);
+    });
+    return () => {
+      unsubscribe();
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
+  }, []);
 
   useEffect(() => {
     const updateNetwork = () => setNetworkOnline(navigator.onLine);
@@ -179,6 +194,7 @@ export function AppShell() {
     try {
       await apiGet("/api/v1/settings");
       await refresh();
+      notifySuccess("Connection completed successfully.");
     } catch (error) {
       setTokenError(
         error instanceof Error
@@ -199,6 +215,7 @@ export function AppShell() {
       await apiGet("/api/v1/settings");
       await refresh();
       setProfileMenuOpen(false);
+      notifySuccess("Guest workspace created successfully.");
     } catch (error) {
       setTokenError(error instanceof Error ? error.message : "Could not create a guest workspace.");
     } finally {
@@ -266,7 +283,10 @@ export function AppShell() {
           type="button"
           className={`astra-focus-button ${focusMode ? "is-active" : ""}`}
           aria-pressed={focusMode}
-          onClick={() => setFocusMode((active) => !active)}
+          onClick={() => {
+            setFocusMode((active) => !active);
+            notifySuccess(focusMode ? "Focus mode turned off successfully." : "Focus mode turned on successfully.");
+          }}
         >
           <Sparkles className="size-3.5" />
           {focusMode ? "EXIT FOCUS MODE" : "FOCUS MODE"}
@@ -393,6 +413,7 @@ export function AppShell() {
                         setApiToken("");
                         setTokenError("");
                         setProfileMenuOpen(false);
+                        notifySuccess("Signed out successfully.");
                       }}
                     >
                       <ShieldCheck className="size-4" />
@@ -469,6 +490,8 @@ export function AppShell() {
         </main>
       </div>
 
+      {successMessage ? <div className="astra-success-toast" role="status" aria-live="polite">{successMessage}</div> : null}
+
       <footer className={`astra-statusbar ${isChatPage ? "is-chat-page" : ""} ${isVoicePage ? "is-voice-page" : ""}`}>
         <div className="astra-status-tiles">
           <div className="astra-status-tile">
@@ -509,7 +532,10 @@ export function AppShell() {
           type="button"
           className={`astra-executive-link ${focusMode ? "is-active" : ""}`}
           aria-pressed={focusMode}
-          onClick={() => setFocusMode((active) => !active)}
+          onClick={() => {
+            setFocusMode((active) => !active);
+            notifySuccess(focusMode ? "Executive mode turned off successfully." : "Executive mode turned on successfully.");
+          }}
         >
           <Crown className="size-4" />
           <span>{focusMode ? "EXIT EXECUTIVE MODE" : "EXECUTIVE MODE"}</span>

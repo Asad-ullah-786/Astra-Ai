@@ -48,6 +48,7 @@ import type {
   TaskUpdateInput,
 } from "../types/index.ts";
 import { parseDeviceIntent } from "../lib/deviceIntent.ts";
+import { notifySuccess } from "../lib/notifications.ts";
 import { launchLocalApplication, openLocalUrl } from "../services/device.ts";
 
 function describe(error: unknown): string {
@@ -474,6 +475,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       setCommandError(null);
     }
     await refresh();
+    notifySuccess("Conversation deleted successfully.");
   }, [refresh]);
 
   const startNewConversation = useCallback(() => {
@@ -495,6 +497,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
   const saveDisplayName = useCallback(async (name: string) => {
     const saved = await saveSettings(name);
     setSettings(saved);
+    notifySuccess("Display name saved successfully.");
   }, []);
 
   const selectAIModel = useCallback(async (model: string) => {
@@ -512,6 +515,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
     setLocalSelectedModel(null);
     setAIStatus(await clearSelectedAIModel());
     await refresh();
+    notifySuccess("AI model selection cleared successfully.");
   }, [refresh]);
 
   const saveApiToken = useCallback((token: string) => {
@@ -522,31 +526,45 @@ export function AstraProvider({ children }: { children: ReactNode }) {
   const createTaskItem = useCallback(async (task: TaskCreateInput) => {
     await postTask(task);
     await refresh();
+    notifySuccess("Task created successfully.");
   }, [refresh]);
 
   const updateTaskItem = useCallback(async (taskId: string, updates: TaskUpdateInput) => {
     await patchTask(taskId, updates);
     await refresh();
+    notifySuccess(
+      updates.completed === true
+        ? "Task completed successfully."
+        : updates.completed === false
+          ? "Task reopened successfully."
+          : updates.in_progress !== undefined
+            ? updates.in_progress ? "Task marked in progress successfully." : "Task progress updated successfully."
+            : "Task updated successfully.",
+    );
   }, [refresh]);
 
   const deleteTaskItem = useCallback(async (taskId: string) => {
     await removeTask(taskId);
     await refresh();
+    notifySuccess("Task deleted successfully.");
   }, [refresh]);
 
   const createMemoryItem = useCallback(async (memory: MemoryInput) => {
     await postMemory(memory);
     await refresh();
+    notifySuccess("Memory saved successfully.");
   }, [refresh]);
 
   const updateMemoryItem = useCallback(async (memoryId: string, memory: Partial<MemoryInput>) => {
     await patchMemory(memoryId, memory);
     await refresh();
+    notifySuccess("Memory updated successfully.");
   }, [refresh]);
 
   const deleteMemoryItem = useCallback(async (memoryId: string) => {
     await removeMemory(memoryId);
     await refresh();
+    notifySuccess("Memory deleted successfully.");
   }, [refresh]);
 
   const value = useMemo(

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Chrome, Code2, FileText, Settings2, Video, VideoOff } from "lucide-react";
 import { Panel } from "../components/Panel.tsx";
+import { notifySuccess } from "../lib/notifications.ts";
 import { useAstra } from "../hooks/useAstra.ts";
 import { connectLocalDevice, disconnectLocalDevice, hasLocalDeviceSession, openLocalUrl } from "../services/device.ts";
 import { launchApplication } from "../services/api.ts";
@@ -40,6 +41,7 @@ export function AutomationPage() {
       setPairingCode("");
       setPaired(true);
       setMessage("This browser tab is paired with the local ASTRA companion.");
+      notifySuccess("This browser tab paired successfully.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The local companion could not be paired.");
     } finally {
@@ -55,6 +57,7 @@ export function AutomationPage() {
       await disconnectLocalDevice();
       setPaired(false);
       setMessage("Local device access was disconnected.");
+      notifySuccess("Local device disconnected successfully.");
     } catch (caught) {
       setPaired(false);
       setError(caught instanceof Error ? caught.message : "Local device access could not be disconnected.");
@@ -70,6 +73,7 @@ export function AutomationPage() {
     try {
       const result = await launchApplication(application);
       setMessage(result.message);
+      notifySuccess(`${APPLICATIONS.find((item) => item.id === application)?.label ?? "Application"} opened successfully.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The application could not be opened.");
       setPaired(hasLocalDeviceSession());
@@ -86,6 +90,7 @@ export function AutomationPage() {
       const image = await captureScreenFrame();
       downloadBlob(image, `astra-screenshot-${new Date().toISOString().replaceAll(":", "-")}.png`);
       setMessage("Screenshot saved to your Downloads folder.");
+      notifySuccess("Screenshot captured and downloaded successfully.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Screen capture was cancelled or failed.");
     } finally {
@@ -117,6 +122,7 @@ export function AutomationPage() {
       );
       if (reply) {
         setMessage("The selected file was sent to the current ASTRA conversation.");
+        notifySuccess("Selected file sent successfully.");
         setSelectedFile(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
       } else {
@@ -134,6 +140,7 @@ export function AutomationPage() {
       cameraStream.getTracks().forEach((track) => track.stop());
       setCameraStream(null);
       setMessage("Camera stopped. No camera frames were uploaded.");
+      notifySuccess("Camera preview stopped successfully.");
       return;
     }
     setError("");
@@ -141,6 +148,7 @@ export function AutomationPage() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
       setCameraStream(stream);
       setMessage("Camera preview is local to this tab; frames are not sent to ASTRA.");
+      notifySuccess("Camera preview started successfully.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Camera access was denied or unavailable.");
     }
@@ -276,7 +284,10 @@ export function AutomationPage() {
             setMessage("");
             setError("");
             void openLocalUrl(websiteUrl)
-              .then((result) => setMessage(result.message))
+              .then((result) => {
+                setMessage(result.message);
+                notifySuccess("Website opened successfully.");
+              })
               .catch((caught: unknown) => {
                 setError(caught instanceof Error ? caught.message : "The website could not be opened.");
                 setPaired(hasLocalDeviceSession());

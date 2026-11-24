@@ -2,10 +2,12 @@ import { useState, type CSSProperties } from "react";
 import {
   Activity,
   ArrowRight,
+  BookOpen,
   Bot,
   Brain,
   BrainCircuit,
   Camera,
+  CalendarDays,
   CheckCircle2,
   Chrome,
   Circle,
@@ -17,6 +19,7 @@ import {
   Globe,
   ListTodo,
   MessageSquare,
+  Mic,
   MousePointer2,
   PlugZap,
   Search,
@@ -25,6 +28,7 @@ import {
   Star,
   Timer,
   Download,
+  Settings,
   X,
   type LucideIcon,
   Waves,
@@ -35,6 +39,7 @@ import { Panel } from "../components/Panel.tsx";
 import { ScrollHintArrow } from "../components/ScrollHintArrow.tsx";
 import { useAstra } from "../hooks/useAstra.ts";
 import { useScrollHint } from "../hooks/useScrollHint.ts";
+import { notifySuccess } from "../lib/notifications.ts";
 import { formatGigabytes, formatPercent } from "../lib/format.ts";
 import { launchApplication } from "../services/api.ts";
 import { captureScreenFrame, downloadBlob } from "../services/screenshot.ts";
@@ -274,6 +279,13 @@ export function DashboardPage() {
     setActionError("");
     try {
       await launchApplication(application);
+      const applicationName = {
+        code: "Visual Studio Code",
+        cursor: "Cursor",
+        chrome: "Google Chrome",
+        settings: "Windows Settings",
+      }[application];
+      notifySuccess(`${applicationName} opened successfully.`);
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "The quick command failed.");
     } finally {
@@ -287,6 +299,7 @@ export function DashboardPage() {
     try {
       const image = await captureScreenFrame();
       downloadBlob(image, `astra-screenshot-${new Date().toISOString().replaceAll(":", "-")}.png`);
+      notifySuccess("Screenshot captured and downloaded successfully.");
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "Screen capture was cancelled or failed.");
     } finally {
@@ -301,6 +314,7 @@ export function DashboardPage() {
     try {
       const result = await launchApplication(application);
       setAgentActionMessage(result.message);
+      notifySuccess(`${application === "code" ? "Visual Studio Code" : "Cursor"} opened successfully.`);
     } catch (caught) {
       setAgentActionMessage(caught instanceof Error ? caught.message : "The application could not be opened.");
     } finally {
@@ -340,9 +354,9 @@ export function DashboardPage() {
                 );
               })}
             </div>
-            {aiModelsScrollable ? <ScrollHintArrow hasScrolled={hasScrolledAiModels} /> : null}
+            {aiModelsScrollable ? <ScrollHintArrow hasScrolled={hasScrolledAiModels} scrollRef={aiModelScrollRef} /> : null}
           </div>
-          <NavLink to="/settings" className="panel-action">Manage providers <ArrowRight className="size-3" /></NavLink>
+          <NavLink to="/settings" className="panel-action manage-providers-action">Manage providers <ArrowRight className="size-3" /></NavLink>
         </Panel>
 
         <NavLink
@@ -463,10 +477,18 @@ export function DashboardPage() {
         </Panel>
 
         <Panel title="QUICK COMMANDS" className="dashboard-panel quick-panel" scrollHint>
+          <QuickExternalLink href="/chat" label="Open AI Chat" icon={MessageSquare} />
+          <QuickExternalLink href="/voice" label="Open Voice Assistant" icon={Mic} />
+          <QuickExternalLink href="/tasks" label="Open Tasks" icon={ListTodo} />
+          <QuickExternalLink href="/calendar" label="Open Calendar" icon={CalendarDays} />
+          <QuickExternalLink href="/research" label="Start Web Research" icon={Search} />
+          <QuickExternalLink href="/memory" label="Open Memory" icon={Brain} />
+          <QuickExternalLink href="/knowledge" label="Open Knowledge Base" icon={BookOpen} />
+          <QuickExternalLink href="/activity" label="View Activity" icon={Activity} />
+          <QuickExternalLink href="/settings" label="Open Settings" icon={Settings} />
           {health?.cloud_deployment ? (
             <>
               <QuickExternalLink href="/automation" label="Pair Local Device" icon={PlugZap} />
-              <QuickExternalLink href="/chat" label="Open AI Chat" icon={MessageSquare} />
               <QuickAction label={workingAction === "code" ? "Opening VS Code..." : "Open VS Code"} icon={Code2} disabled={Boolean(workingAction)} onClick={() => void launch("code")} />
               <QuickAction label={workingAction === "cursor" ? "Opening Cursor..." : "Open Cursor"} icon={MousePointer2} disabled={Boolean(workingAction)} onClick={() => void launch("cursor")} />
               <QuickAction label={workingAction === "chrome" ? "Opening Chrome..." : "Open Chrome"} icon={Chrome} disabled={Boolean(workingAction)} onClick={() => void launch("chrome")} />
@@ -573,9 +595,9 @@ export function DashboardPage() {
                 );
               })}
             </div>
-            {llmModelsScrollable ? <ScrollHintArrow hasScrolled={hasScrolledLlmModels} /> : null}
+            {llmModelsScrollable ? <ScrollHintArrow hasScrolled={hasScrolledLlmModels} scrollRef={llmModelScrollRef} /> : null}
           </div>
-          <NavLink to="/settings" className="panel-action">Manage providers <ArrowRight className="size-3" /></NavLink>
+          <NavLink to="/settings" className="panel-action manage-providers-action">Manage providers <ArrowRight className="size-3" /></NavLink>
         </Panel>
       </div>
 

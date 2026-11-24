@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, useSearchParams } from "react-router";
 import { Panel } from "../components/Panel.tsx";
+import { notifySuccess } from "../lib/notifications.ts";
 import { useAstra } from "../hooks/useAstra.ts";
 import { getCloudModelPricingLabel, getLocalModelDownloadQueue } from "../lib/llmProviders.ts";
 import {
@@ -44,7 +45,6 @@ export function SettingsPage() {
   const selectedLocalModel = modelOverride ?? (isCloudModelSelected ? "" : selectedModel);
   const selectedGeminiModel = geminiModelOverride ?? (selectedModel.startsWith("gemini:") ? selectedModel.slice("gemini:".length) : "");
   const selectedOpenAIModel = openaiModelOverride ?? (selectedModel.startsWith("openai:") ? selectedModel.slice("openai:".length) : "");
-  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,12 +79,10 @@ export function SettingsPage() {
           className="flex flex-col gap-3 sm:flex-row"
           onSubmit={(event) => {
             event.preventDefault();
-            setNotice(null);
             setError(null);
             void saveDisplayName(name)
               .then(() => {
                 setNameOverride(null);
-                setNotice("Display name saved on this computer.");
               })
               .catch((caught: unknown) => {
                 setError(caught instanceof Error ? caught.message : "The name could not be saved.");
@@ -149,7 +147,7 @@ export function SettingsPage() {
                 setPersonalKey("");
                 setHasPersonalKey(true);
                 setError(null);
-                setNotice("Personal API key saved for this browser tab only.");
+                notifySuccess("Personal API key saved successfully for this browser tab.");
               }}
               className="rounded-xl border border-astra-cyan/40 px-4 py-3 font-display text-xs tracking-[0.16em] text-astra-cyan"
             >
@@ -162,7 +160,7 @@ export function SettingsPage() {
                   setPersonalProviderCredentials(personalProvider, "");
                   setHasPersonalKey(false);
                   setPersonalKey("");
-                  setNotice("Personal API key removed from this browser tab.");
+                  notifySuccess("Personal API key removed successfully.");
                 }}
                 className="rounded-xl border border-astra-danger/40 px-4 py-3 font-display text-xs tracking-[0.16em] text-astra-danger"
               >
@@ -189,7 +187,7 @@ export function SettingsPage() {
               event.preventDefault();
               saveApiToken(token);
               setError(null);
-              setNotice(token.trim() ? "Token stored for this browser session." : "Session token cleared.");
+              notifySuccess(token.trim() ? "Token saved successfully for this browser session." : "Session token cleared successfully.");
             }}
           >
             <label className="sr-only" htmlFor="api-token">
@@ -228,7 +226,9 @@ export function SettingsPage() {
           </div>
           <button
             type="button"
-            onClick={() => void refreshAI().catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Could not check Ollama."))}
+            onClick={() => void refreshAI()
+              .then(() => notifySuccess("AI connection check completed successfully."))
+              .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Could not check Ollama."))}
             className="rounded-xl border border-astra-cyan/40 px-3 py-2 text-xs text-astra-cyan"
           >
             CHECK CONNECTION
@@ -265,14 +265,13 @@ export function SettingsPage() {
             className="mt-4 flex flex-col gap-3 sm:flex-row"
             onSubmit={(event) => {
               event.preventDefault();
-              setNotice(null);
               setError(null);
               void selectAIModel(selectedLocalModel)
                 .then(() => {
                   setModelOverride(null);
                   setGeminiModelOverride(null);
                   setOpenAIModelOverride(null);
-                  setNotice(health?.cloud_deployment ? "Hosted Ollama model selected." : "Local model selection saved.");
+                  notifySuccess(`${selectedLocalModel} selected successfully.`);
                 })
                 .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "The model could not be selected."));
             }}
@@ -365,7 +364,10 @@ export function SettingsPage() {
                 return;
               }
               void navigator.clipboard.writeText("ollama run qwen2.5:3b")
-                .then(() => setOllamaCommandCopied(true))
+                .then(() => {
+                  setOllamaCommandCopied(true);
+                  notifySuccess("Ollama command copied successfully.");
+                })
                 .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Could not copy the Ollama command."));
             }}
             className="rounded-lg border border-white/15 px-3 py-2 text-xs text-astra-muted"
@@ -468,14 +470,13 @@ export function SettingsPage() {
             className="mt-4 flex flex-col gap-3 sm:flex-row"
             onSubmit={(event) => {
               event.preventDefault();
-              setNotice(null);
               setError(null);
               void selectAIModel(`gemini:${selectedGeminiModel}`)
                 .then(() => {
                   setModelOverride(null);
                   setGeminiModelOverride(null);
                   setOpenAIModelOverride(null);
-                  setNotice("Gemini model selection saved. Chat context will be sent to Google.");
+                  notifySuccess("Gemini model selection saved successfully. Chat context will be sent to Google.");
                 })
                 .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "The Gemini model could not be selected."));
             }}
@@ -522,7 +523,9 @@ export function SettingsPage() {
             type="button"
             onClick={() => {
               setError(null);
-              void refreshAI().catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Could not check OpenAI."));
+              void refreshAI()
+                .then(() => notifySuccess("OpenAI connection check completed successfully."))
+                .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Could not check OpenAI."));
             }}
             className="rounded-xl border border-astra-cyan/40 px-3 py-2 text-xs text-astra-cyan"
           >
@@ -547,14 +550,13 @@ export function SettingsPage() {
             className="mt-4 flex flex-col gap-3 sm:flex-row"
             onSubmit={(event) => {
               event.preventDefault();
-              setNotice(null);
               setError(null);
               void selectAIModel(`openai:${selectedOpenAIModel}`)
                 .then(() => {
                   setModelOverride(null);
                   setGeminiModelOverride(null);
                   setOpenAIModelOverride(null);
-                  setNotice("OpenAI model selection saved. Chat context will be sent to OpenAI.");
+                  notifySuccess("OpenAI model selection saved successfully. Chat context will be sent to OpenAI.");
                 })
                 .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "The OpenAI model could not be selected."));
             }}
@@ -581,7 +583,6 @@ export function SettingsPage() {
           </form>
         ) : null}
       </Panel>
-      {notice ? <p className="text-sm text-astra-ok">{notice}</p> : null}
       {error ? (
         <p className="text-sm text-astra-danger" role="alert">
           {error}

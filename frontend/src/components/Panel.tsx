@@ -23,7 +23,7 @@ export function Panel({
       {scrollHint ? (
         <div className={`scroll-hint-frame panel-scroll-hint-frame mt-3 ${isScrollable ? "has-scroll-hint" : ""}`}>
           <div className="panel-content" ref={scrollRef}>{children}</div>
-          {isScrollable ? <ScrollHintArrow hasScrolled={hasScrolled} /> : null}
+          {isScrollable ? <ScrollHintArrow hasScrolled={hasScrolled} scrollRef={scrollRef} /> : null}
         </div>
       ) : (
         <div className="panel-content mt-3">{children}</div>

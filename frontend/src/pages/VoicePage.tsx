@@ -4,6 +4,7 @@ import { ApiError, downloadVoiceModel, getVoiceStatus, transcribeAudio } from ".
 import { AstraCore } from "../components/AstraCore.tsx";
 import { ModuleNotice } from "../components/ModuleNotice.tsx";
 import { Panel } from "../components/Panel.tsx";
+import { notifySuccess } from "../lib/notifications.ts";
 import { useAstra } from "../hooks/useAstra.ts";
 import { createSpeechQueue } from "../lib/speech.ts";
 import { watchForSpeechPause } from "../lib/voiceSilence.ts";
@@ -81,6 +82,7 @@ export function VoicePage() {
       const status = await downloadVoiceModel();
       setVoiceStatus(status);
       await refresh();
+      notifySuccess("Speech model installed successfully.");
     } catch (caught) {
       setError(describeError(caught));
     } finally {
@@ -199,6 +201,7 @@ export function VoicePage() {
       browserRecognitionRef.current = recognition;
       recognition.start();
       setRecording(true);
+      notifySuccess("Microphone started successfully.");
       recordingTimeoutRef.current = window.setTimeout(() => recognition.stop(), 60_000);
     } catch (caught) {
       browserRecognitionRef.current = null;
@@ -224,6 +227,7 @@ export function VoicePage() {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       streamRef.current = stream;
+      notifySuccess("Microphone started successfully.");
       chunksRef.current = [];
       const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) =>
         MediaRecorder.isTypeSupported(type),

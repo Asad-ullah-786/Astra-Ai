@@ -4,6 +4,7 @@ import httpx
 
 from app.security.access import is_local_request, token_matches
 from app.ai.provider import AIProviderError, InstalledModel
+from app.config import get_settings
 from app.database.session import _database_connection_options
 from app.services.ai_clients import available_ai_clients
 from app.services.research import search_web
@@ -40,6 +41,30 @@ def test_local_request_rules():
     assert is_local_request("evil.example", "127.0.0.1") is False
     assert is_local_request("127.0.0.1:8787", "192.168.1.40") is False
     assert is_local_request("localhost.evil.com", "127.0.0.1") is False
+
+
+def test_local_device_cors_allows_private_network_preflight_only_for_approved_origins(client):
+    approved_origin = get_settings().cors_origin_list[0]
+    preflight_headers = {
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+        "access-control-request-private-network": "true",
+    }
+
+    approved = client.options(
+        "/api/v1/device/pair",
+        headers={**preflight_headers, "origin": approved_origin},
+    )
+    assert approved.status_code == 200
+    assert approved.headers["access-control-allow-origin"] == approved_origin
+    assert approved.headers["access-control-allow-private-network"] == "true"
+
+    unapproved = client.options(
+        "/api/v1/device/pair",
+        headers={**preflight_headers, "origin": "https://example.com"},
+    )
+    assert unapproved.status_code == 400
+    assert "access-control-allow-origin" not in unapproved.headers
 
 
 def test_token_comparison_rejects_partial_matches():

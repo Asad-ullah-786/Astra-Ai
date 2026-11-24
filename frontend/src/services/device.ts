@@ -47,7 +47,7 @@ async function localRequest<T>(path: string, init: RequestInit = {}): Promise<T>
   } catch (error) {
     if (error instanceof TypeError) {
       throw new Error(
-        "Local ASTRA companion is unreachable. Start it on this PC and allow ASTRA local-network access in your browser.",
+        "Could not reach the local ASTRA companion. Make sure it is running, then in Chrome open this site's controls > Site settings > Local network access > Allow, and reload ASTRA.",
       );
     }
     throw error;

@@ -184,11 +184,14 @@ export function AutomationPage() {
                 </li>
                 <li>
                   <strong className="text-white">Allow this browser to reach your PC.</strong>{" "}
-                  If Chrome or Edge asks for local-network access, choose <strong>Allow</strong>.
+                  If Chrome or Edge asks for local-network access, choose <strong>Allow</strong>. If Chrome has blocked it already,
+                  open the site controls beside the address bar, choose <strong>Site settings</strong>, set <strong>Local network access</strong> to <strong>Allow</strong>, then reload ASTRA.
                 </li>
                 <li>
                   <strong className="text-white">Pair this tab.</strong>{" "}
-                  Enter the code below and click <strong>PAIR DEVICE</strong> within 5 minutes. This authorizes direct opens of allowlisted apps and public websites on this PC until you disconnect or the 12-hour session expires.
+                  Each browser needs its own pairing. Enter a fresh code below and click <strong>PAIR DEVICE</strong> within 5 minutes.
+                  Pairing codes work once, so restart the companion for a new code if you already paired it in another browser.
+                  This authorizes direct opens of allowlisted apps and public websites on this PC until you disconnect or the 12-hour session expires.
                 </li>
               </ol>
               <figure className="mb-4 overflow-hidden rounded-xl border border-astra-cyan/20 bg-black/20">

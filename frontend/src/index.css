@@ -5229,10 +5229,6 @@ button.llm-model:not(:disabled):focus-visible {
   width: 100%;
 }
 
-.scroll-hint-frame.has-scroll-hint {
-  padding-bottom: 1.65rem;
-}
-
 .panel-scroll-hint-frame > .panel-content {
   min-height: 0;
   flex: 1 1 auto;

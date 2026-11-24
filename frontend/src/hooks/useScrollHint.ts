@@ -12,11 +12,7 @@ export function useScrollHint() {
     }
 
     const update = () => {
-      const frame = element.parentElement;
-      const reservedSpace = frame?.classList.contains("has-scroll-hint")
-        ? Number.parseFloat(getComputedStyle(frame).paddingBottom) || 0
-        : 0;
-      const canScroll = element.scrollHeight > element.clientHeight + reservedSpace + 1;
+      const canScroll = element.scrollHeight > element.clientHeight + 1;
       const scrolled = canScroll && element.scrollTop > 1;
       setIsScrollable((current) => current === canScroll ? current : canScroll);
       setHasScrolled((current) => current === scrolled ? current : scrolled);

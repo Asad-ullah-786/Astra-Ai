@@ -52,5 +52,5 @@ export function responseLanguageCode(
 ): string {
   if (selection !== "auto") return selection;
   const primary = recognizedLanguage.split("-")[0]?.toLowerCase();
-  return primary === "ur" ? "ur" : "en";
+  return primary && /^[a-z]{2,3}$/.test(primary) && primary !== "und" ? primary : "en";
 }

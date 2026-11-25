@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, LoaderCircle, Mic, Square, Volume2, VolumeX } from "lucide-react";
-import { ApiError, downloadVoiceModel, getVoiceStatus, transcribeAudio } from "../services/api.ts";
+import {
+  ApiError,
+  downloadVoiceModel,
+  getPersonalProviderName,
+  getVoiceStatus,
+  hasPersonalProviderKey,
+  transcribeAudio,
+} from "../services/api.ts";
 import { AstraCore } from "../components/AstraCore.tsx";
 import { ModuleNotice } from "../components/ModuleNotice.tsx";
 import { Panel } from "../components/Panel.tsx";
@@ -8,6 +15,7 @@ import { notifySuccess } from "../lib/notifications.ts";
 import { useAstra } from "../hooks/useAstra.ts";
 import { createSpeechQueue } from "../lib/speech.ts";
 import { watchForSpeechPause } from "../lib/voiceSilence.ts";
+import { hasLocalDeviceSession } from "../services/device.ts";
 import {
   getBrowserSpeechRecognition,
   recognitionLanguage,
@@ -28,6 +36,8 @@ export function VoicePage() {
     aiStatus,
     commandError,
     health,
+    localAIStatus,
+    localSelectedModel,
     sendCommand,
     refresh,
     state,
@@ -284,6 +294,52 @@ export function VoicePage() {
   const browserSpeechAvailable = Boolean(getBrowserSpeechRecognition());
   const cloudDeployment = Boolean(health?.cloud_deployment);
   const voiceReady = cloudDeployment ? browserSpeechAvailable : Boolean(voiceStatus?.ready);
+  const localModelSelected = Boolean(cloudDeployment && localSelectedModel);
+  const localRouteActive = Boolean(
+    localModelSelected && hasLocalDeviceSession() && localAIStatus?.connected,
+  );
+  const selectedModel = localRouteActive ? localSelectedModel : aiStatus?.selected_model ?? null;
+  const personalProvider = cloudDeployment && !localRouteActive && hasPersonalProviderKey()
+    ? getPersonalProviderName()
+    : null;
+  const selectedProvider = personalProvider
+    ? personalProvider === "openai" ? "OpenAI" : "Gemini"
+    : selectedModel?.startsWith("gemini:")
+      ? "Gemini"
+      : selectedModel?.startsWith("openai:")
+        ? "OpenAI"
+        : selectedModel
+          ? "Ollama"
+          : "No model selected";
+  const activeProvider = personalProvider
+    ? personalProvider === "openai" ? "OpenAI (personal API key)" : "Gemini (personal API key)"
+    : localRouteActive
+      ? "Ollama · paired PC"
+      : selectedProvider;
+  const modelHasProviderPrefix = selectedModel?.startsWith("gemini:")
+    || selectedModel?.startsWith("openai:")
+    || selectedModel?.startsWith("ollama:");
+  const providerModel = personalProvider && !selectedModel?.startsWith(`${personalProvider}:`)
+    ? personalProvider === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash"
+    : modelHasProviderPrefix
+      ? selectedModel?.split(":").slice(1).join(":")
+      : selectedModel;
+  const providerConnection = localRouteActive
+    ? "Connected · paired PC"
+    : personalProvider
+      ? "Saved · checked when the next request runs"
+      : selectedProvider === "Gemini"
+        ? aiStatus?.gemini?.connected ? "Connected" : "Not connected"
+        : selectedProvider === "OpenAI"
+          ? aiStatus?.openai?.connected ? "Connected" : "Not connected"
+          : selectedProvider === "Ollama"
+            ? aiStatus?.connected ? "Connected" : "Not connected"
+            : "Choose a model in Settings";
+  const languageGuidance = selectedProvider === "Ollama" && !personalProvider
+    ? "Ollama is a runtime, not one model: it is not inherently English-only. Language ability varies by the selected model. ASTRA asks it to reply in the detected speech language; check that model's card for its exact language coverage."
+    : selectedProvider === "Gemini" || selectedProvider === "OpenAI" || personalProvider
+      ? "Gemini and OpenAI models can handle multiple languages; exact language coverage and quality vary by model. ASTRA asks the selected model to reply in the detected speech language."
+      : "Choose an AI model to see its language behavior. ASTRA will ask the active model to reply in the detected speech language.";
   const coreState = recording ? "listening" : working && state === "idle" ? "processing" : state;
   const voiceStatusText = recording
     ? "Listening..."
@@ -293,7 +349,11 @@ export function VoicePage() {
         ? "ASTRA IS SPEAKING"
         : working
           ? "PROCESSING YOUR VOICE"
-          : "READY · PRESS CLICK HERE TO TALK";
+          : voiceReady
+            ? "READY · PRESS CLICK HERE TO TALK"
+            : cloudDeployment
+              ? "BROWSER SPEECH UNAVAILABLE"
+              : "VOICE SETUP REQUIRED";
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
@@ -337,6 +397,50 @@ export function VoicePage() {
         </div>
       </section>
       <ModuleNotice moduleId="voice" />
+      <Panel title="ACTIVE VOICE ROUTE">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-astra-cyan/20 bg-slate-950/45 p-4">
+            <p className="font-display text-xs tracking-[0.14em] text-astra-cyan">AI PROVIDER & MODEL</p>
+            <p className="mt-2 text-sm font-semibold text-white">{activeProvider}</p>
+            <p className="mt-1 break-all text-sm text-astra-muted">
+              {providerModel ?? "Select a model in Settings"}
+            </p>
+            <p className="mt-2 text-xs text-astra-muted">{providerConnection}</p>
+            {localModelSelected && !localRouteActive ? (
+              <p className="mt-2 text-xs text-amber-200" role="status">
+                {selectedModel || personalProvider
+                  ? "The selected local Ollama model is offline. ASTRA will use the configured hosted model instead."
+                  : "The selected local Ollama model is offline. Reconnect the companion or choose a hosted model in Settings."}
+              </p>
+            ) : null}
+          </div>
+          <div className="rounded-xl border border-astra-cyan/20 bg-slate-950/45 p-4">
+            <p className="font-display text-xs tracking-[0.14em] text-astra-cyan">SPEECH ENGINE</p>
+            <p className="mt-2 text-sm font-semibold text-white">
+              {cloudDeployment
+                ? "Browser speech recognition"
+                : voiceStatus?.ready
+                  ? "Local multilingual Whisper"
+                  : "Local Whisper setup required"}
+            </p>
+            <p className="mt-1 text-xs text-astra-muted">
+              {cloudDeployment
+                ? browserSpeechAvailable
+                  ? "Available in this browser. Uses its selected locale; the controls offer automatic locale, English, or Urdu."
+                  : "Speech recognition is unavailable in this browser. Try a current version of Chrome or Edge."
+                : voiceStatus?.ready
+                  ? "Whisper is multilingual. The controls offer automatic detection, English, or Urdu."
+                  : voiceStatus?.dependencies_installed
+                    ? "The local speech model must be downloaded before offline transcription is available."
+                    : "Install the local speech dependencies, then download the multilingual model."}
+            </p>
+            <p className="mt-2 text-xs text-astra-muted">
+              Replies are spoken by your browser's speech engine when supported.
+            </p>
+          </div>
+          <p className="text-xs leading-5 text-astra-muted sm:col-span-2">{languageGuidance}</p>
+        </div>
+      </Panel>
       <Panel title="VOICE CONTROLS">
         <div className="flex flex-col gap-4">
           {!voiceReady ? (

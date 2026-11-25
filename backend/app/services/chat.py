@@ -25,7 +25,7 @@ def _title_from(text: str) -> str:
     return compact[:77] + "..."
 
 
-def _language_instruction(response_language: str | None) -> str:
+def language_instruction(response_language: str | None) -> str:
     focus_instruction = (
         "Answer the user's latest request directly and accurately. "
         "Do not repeat the question, introduce unrelated topics, or add an unnecessary follow-up question. "
@@ -129,7 +129,7 @@ async def handle_command(
     saved_memory = await memory_context(session, owner_id)
     if saved_memory:
         history.insert(0, {"role": "system", "content": saved_memory})
-    history.append({"role": "system", "content": _language_instruction(response_language)})
+    history.append({"role": "system", "content": language_instruction(response_language)})
     user_message = ChatMessage(
         id=str(uuid4()),
         owner_id=owner_id,
@@ -283,7 +283,7 @@ async def prepare_stream_command(
     saved_memory = await memory_context(session, owner_id)
     if saved_memory:
         history.insert(0, {"role": "system", "content": saved_memory})
-    history.append({"role": "system", "content": _language_instruction(response_language)})
+    history.append({"role": "system", "content": language_instruction(response_language)})
     user_message = ChatMessage(
         id=str(uuid4()),
         owner_id=owner_id,

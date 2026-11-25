@@ -381,6 +381,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
               .filter((message) => message.role === "user" || message.role === "assistant")
               .slice(-40)
               .map((message) => ({ role: message.role as "user" | "assistant", content: message.content })),
+            options?.responseLanguage,
           );
           const saved = await saveLocalAICommand({
             text: cleaned,

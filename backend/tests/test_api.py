@@ -305,6 +305,31 @@ def test_modules_are_honest(client):
     assert "Ollama" in modules["ai"]["summary"]
 
 
+def test_hosted_browser_voice_module_is_online(client, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setenv("ASTRA_API_TOKEN", "test-token-with-more-than-thirty-two-characters")
+    get_settings.cache_clear()
+    try:
+        guest = client.post("/api/v1/auth/guest", headers={"host": "astra-ai.vercel.app"})
+        assert guest.status_code == 201
+        response = client.get(
+            "/api/v1/modules",
+            headers={
+                "Authorization": f"Bearer {guest.json()['access_token']}",
+                "host": "astra-ai.vercel.app",
+            },
+        )
+        assert response.status_code == 200
+        modules = {item["id"]: item for item in response.json()}
+        assert modules["voice"]["status"] == "online"
+        assert "browser speech recognition" in modules["voice"]["summary"]
+        assert "Local Whisper" in modules["voice"]["summary"]
+    finally:
+        get_settings.cache_clear()
+
+
 def test_local_voice_status_and_transcription(client, monkeypatch):
     status = client.get("/api/v1/voice/status")
     assert status.status_code == 200
@@ -586,8 +611,10 @@ def test_paired_companion_exposes_local_ollama_models_and_chat(client, monkeypat
         async def list_models(self):
             return installed
 
+    calls = []
+
     async def complete(self, messages):
-        assert messages == [{"role": "user", "content": "Hello"}]
+        calls.append(messages)
         return "Local Ollama reply."
 
     monkeypatch.setattr("app.api.router.get_language_model", lambda: FakeOllama())
@@ -618,6 +645,29 @@ def test_paired_companion_exposes_local_ollama_models_and_chat(client, monkeypat
     )
     assert response.status_code == 200
     assert response.json() == {"reply": "Local Ollama reply."}
+    assert calls[-1] == [{"role": "user", "content": "Hello"}]
+    language_response = client.post(
+        "/api/v1/device/ai/chat",
+        json={
+            "model": "qwen2.5:1.5b",
+            "messages": [{"role": "user", "content": "Salam"}],
+            "response_language": "ur",
+        },
+        headers=headers,
+    )
+    assert language_response.status_code == 200
+    assert calls[-1][-1]["role"] == "system"
+    assert "ISO code 'ur'" in calls[-1][-1]["content"]
+    invalid_language = client.post(
+        "/api/v1/device/ai/chat",
+        json={
+            "model": "qwen2.5:1.5b",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "response_language": "English",
+        },
+        headers=headers,
+    )
+    assert invalid_language.status_code == 422
 
 
 def test_local_ai_result_is_saved_to_authenticated_hosted_conversation(client):
@@ -788,9 +838,9 @@ def test_model_selection_and_streamed_chat(client, monkeypatch):
 
 
 def test_text_chat_instruction_stays_focused():
-    from app.services.chat import _language_instruction
+    from app.services.chat import language_instruction
 
-    instruction = _language_instruction(None).lower()
+    instruction = language_instruction(None).lower()
 
     assert "same language and writing system" in instruction
     assert "answer the user's latest request directly and accurately" in instruction

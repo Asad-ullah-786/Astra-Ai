@@ -339,6 +339,11 @@ class DeviceAIMessageIn(BaseModel):
 class DeviceAIChatIn(BaseModel):
     model: str = Field(min_length=1, max_length=120)
     messages: list[DeviceAIMessageIn] = Field(min_length=1, max_length=40)
+    response_language: str | None = Field(
+        default=None,
+        max_length=12,
+        pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$",
+    )
 
 
 class LocalCommandResultIn(BaseModel):

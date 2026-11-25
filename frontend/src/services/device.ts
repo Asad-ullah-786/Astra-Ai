@@ -121,10 +121,11 @@ export function getLocalAIStatus(): Promise<DeviceAIStatus> {
 export function chatWithLocalAI(
   model: string,
   messages: Array<{ role: "user" | "assistant"; content: string }>,
+  responseLanguage?: string,
 ): Promise<DeviceAIChatResponse> {
   return localRequest<DeviceAIChatResponse>("/api/v1/device/ai/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages }),
+    body: JSON.stringify({ model, messages, response_language: responseLanguage ?? null }),
   });
 }

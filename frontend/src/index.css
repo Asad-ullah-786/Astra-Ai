@@ -4919,8 +4919,8 @@ button.llm-model:not(:disabled):focus-visible {
 }
 
 .voice-assistant-content .astra-core {
-  width: min(19rem, 58vw);
-  height: min(19rem, 58vw);
+  width: min(21rem, 58vw);
+  height: min(21rem, 58vw);
 }
 
 .voice-core-copy .core-sphere {
@@ -5097,8 +5097,8 @@ button.llm-model:not(:disabled):focus-visible {
   }
 
   .voice-assistant-content .astra-core {
-    width: min(15rem, 60vw);
-    height: min(15rem, 60vw);
+    width: min(17rem, 60vw);
+    height: min(17rem, 60vw);
   }
 
   .voice-assistant-content.voice-core-copy {

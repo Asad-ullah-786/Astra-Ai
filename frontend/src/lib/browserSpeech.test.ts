@@ -14,4 +14,11 @@ describe("browser speech language selection", () => {
     expect(responseLanguageCode("auto", "ur-PK")).toBe("ur");
     expect(responseLanguageCode("auto", "en-US")).toBe("en");
   });
+
+  it("preserves other recognized languages and falls back for invalid locales", () => {
+    expect(responseLanguageCode("auto", "fr-FR")).toBe("fr");
+    expect(responseLanguageCode("auto", "ar-SA")).toBe("ar");
+    expect(responseLanguageCode("auto", "und")).toBe("en");
+    expect(responseLanguageCode("auto", "")).toBe("en");
+  });
 });

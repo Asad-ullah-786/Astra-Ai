@@ -77,6 +77,7 @@ from app.services.chat import (
     delete_conversation,
     get_conversation,
     handle_command,
+    language_instruction,
     list_conversations,
     prepare_stream_command,
     save_streamed_reply,
@@ -274,10 +275,10 @@ async def modules(
         )
     voice_module = next(item for item in items if item["id"] == "voice")
     if settings.is_vercel_deployment:
-        voice_module["status"] = "pending"
+        voice_module["status"] = "online"
         voice_module["summary"] = (
-            "Browser speech recognition is available in supported browsers; the hosted API receives recognized text. "
-            "Local Whisper and Windows device actions require the optional local companion."
+            "Hosted voice uses browser speech recognition where supported and sends recognized text to the selected AI. "
+            "Local Whisper transcription and Windows device actions require the optional companion."
         )
     elif voice_model_installed():
         voice_module["status"] = "online"
@@ -416,7 +417,10 @@ async def local_device_ai_chat(payload: DeviceAIChatIn, request: Request) -> dic
         installed = await provider.list_models()
         if not any(model.name == payload.model for model in installed):
             raise HTTPException(status_code=422, detail="Choose a model installed in Ollama on this PC.")
-        reply = await provider.complete([message.model_dump() for message in payload.messages])
+        history = [message.model_dump() for message in payload.messages]
+        if payload.response_language:
+            history.append({"role": "system", "content": language_instruction(payload.response_language)})
+        reply = await provider.complete(history)
     except AIProviderError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"reply": reply}

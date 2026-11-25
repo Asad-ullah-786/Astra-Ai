@@ -25,7 +25,7 @@ interface DeviceActionResponse {
 }
 
 interface LocalNetworkRequestInit extends RequestInit {
-  targetAddressSpace: "local";
+  targetAddressSpace: "loopback";
 }
 
 function localDeviceToken(): string {
@@ -39,7 +39,7 @@ async function localRequest<T>(path: string, init: RequestInit = {}): Promise<T>
   const request: LocalNetworkRequestInit = {
     ...init,
     headers,
-    targetAddressSpace: "local",
+    targetAddressSpace: "loopback",
   };
   let response: Response;
   try {

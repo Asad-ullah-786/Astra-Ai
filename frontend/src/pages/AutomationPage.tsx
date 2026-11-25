@@ -241,7 +241,7 @@ export function AutomationPage() {
                 value={pairingCode}
                 maxLength={8}
                 autoComplete="off"
-                onChange={(event) => setPairingCode(event.target.value.toUpperCase())}
+                onChange={(event) => setPairingCode(event.target.value.toUpperCase().replace(/[^0-9A-F]/g, "").slice(0, 8))}
                 placeholder="8-character code"
                 className="min-w-0 flex-1 rounded-lg border border-astra-cyan/30 bg-black/50 px-3 py-2 font-mono text-sm text-astra-text outline-none focus:border-astra-cyan"
               />
@@ -252,8 +252,13 @@ export function AutomationPage() {
               >
                 {working === "pair" ? "CONNECTING..." : "PAIR DEVICE"}
               </button>
+              {pairingCode.length < 8 ? (
+                <p className="w-full text-xs text-astra-muted">Enter 8 code characters (0-9, A-F): {pairingCode.length}/8</p>
+              ) : null}
             </form>
           )}
+          {message ? <p className="mt-3 text-sm text-astra-ok" role="status">{message}</p> : null}
+          {error ? <p className="mt-3 text-sm text-astra-danger" role="alert">{error}</p> : null}
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           {APPLICATIONS.map(({ id, label, icon: Icon }) => (
@@ -366,8 +371,6 @@ export function AutomationPage() {
         <p className="mt-3 text-xs leading-5 text-astra-muted">
           Not available yet: arbitrary webpage clicking, unattended keyboard/mouse sequences, camera uploads to AI, and changing Windows system settings.
         </p>
-        {message ? <p className="mt-3 text-sm text-astra-ok" role="status">{message}</p> : null}
-        {error ? <p className="mt-3 text-sm text-astra-danger" role="alert">{error}</p> : null}
       </Panel>
     </div>
   );

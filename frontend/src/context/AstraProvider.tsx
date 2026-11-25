@@ -389,6 +389,7 @@ export function AstraProvider({ children }: { children: ReactNode }) {
             conversation_id: activeIdRef.current,
             model: localSelectedModel,
           });
+          options?.onToken?.(result.reply);
           activeIdRef.current = saved.conversation_id;
           setActiveConversationId(saved.conversation_id);
           setMessages((current) => [...current, saved.user_message, saved.assistant_message]);

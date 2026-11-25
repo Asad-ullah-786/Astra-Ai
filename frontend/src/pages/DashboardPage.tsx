@@ -30,6 +30,7 @@ import {
   Download,
   Settings,
   X,
+  Wrench,
   type LucideIcon,
   Waves,
 } from "lucide-react";
@@ -484,6 +485,10 @@ export function DashboardPage() {
           <QuickExternalLink href="/research" label="Start Web Research" icon={Search} />
           <QuickExternalLink href="/memory" label="Open Memory" icon={Brain} />
           <QuickExternalLink href="/knowledge" label="Open Knowledge Base" icon={BookOpen} />
+          <QuickExternalLink href="/agents" label="Open Agents" icon={Bot} />
+          <QuickExternalLink href="/conversations" label="Open Conversations" icon={MessageSquare} />
+          <QuickExternalLink href="/system" label="Open System Monitor" icon={Cpu} />
+          <QuickExternalLink href="/skills" label="Open Tools & Skills" icon={Wrench} />
           <QuickExternalLink href="/activity" label="View Activity" icon={Activity} />
           <QuickExternalLink href="/settings" label="Open Settings" icon={Settings} />
           {health?.cloud_deployment ? (

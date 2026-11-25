@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   ListTodo,
   MessageSquare,
+  PlugZap,
   Search,
   Settings,
   Sparkles,
@@ -46,6 +47,7 @@ const NAV = [
   { to: "/conversations", label: "Conversations", icon: MessageSquare },
   { to: "/knowledge", label: "Knowledge Base", icon: BookOpen },
   { to: "/skills", label: "Tools & Skills", icon: Wrench },
+  { to: "/automation", label: "Pair Local Device", icon: PlugZap },
   { to: "/research", label: "Web Access", icon: Globe2 },
 ];
 

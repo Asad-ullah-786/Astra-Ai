@@ -4866,6 +4866,15 @@ button.llm-model:not(:disabled):focus-visible {
     0 0 22px rgba(0, 151, 255, 0.2);
 }
 
+.voice-core-panel.voice-assistant-hero {
+  min-height: clamp(34rem, 72svh, 46rem);
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(0, 180, 255, 0.24), transparent 52%),
+    radial-gradient(ellipse at 50% 90%, rgba(182, 38, 255, 0.12), transparent 43%),
+    linear-gradient(155deg, rgba(3, 19, 39, 0.98), rgba(2, 8, 18, 0.98));
+}
+
 .voice-core-panel::before {
   position: absolute;
   inset: 0;
@@ -4897,9 +4906,21 @@ button.llm-model:not(:disabled):focus-visible {
   gap: 0.45rem;
 }
 
+.voice-core-copy.voice-assistant-content {
+  width: 100%;
+  min-height: inherit;
+  gap: clamp(0.45rem, 1.2vh, 0.85rem);
+  padding: 1.5rem 1rem;
+}
+
 .voice-core-copy .astra-core {
   width: min(20rem, 76vw);
   height: min(20rem, 76vw);
+}
+
+.voice-assistant-content .astra-core {
+  width: min(19rem, 58vw);
+  height: min(19rem, 58vw);
 }
 
 .voice-core-copy .core-sphere {
@@ -4947,6 +4968,114 @@ button.llm-model:not(:disabled):focus-visible {
   font-size: 0.667rem;
 }
 
+.voice-assistant-title {
+  margin: 0;
+  color: #b8d5f1;
+  font-size: clamp(1.35rem, 3.2vw, 2.2rem);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.voice-assistant-title span {
+  background: linear-gradient(90deg, #18e5ff, #ab7bff 60%, #ed58d5);
+  background-clip: text;
+  color: transparent;
+}
+
+.voice-assistant-subtitle {
+  margin: 0 0 0.3rem;
+  color: #9cb4cb;
+  font-size: clamp(0.8rem, 1.4vw, 0.95rem);
+  text-align: center;
+}
+
+.voice-main-action,
+.voice-stop-action {
+  display: inline-flex;
+  min-height: 3.1rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  border: 1px solid rgba(89, 228, 255, 0.6);
+  border-radius: 999px;
+  padding: 0.8rem 1.8rem;
+  color: white;
+  background: linear-gradient(105deg, #08cfe3, #9b2de8);
+  box-shadow: 0 0 28px rgba(0, 206, 255, 0.3);
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  transition: filter 160ms ease, transform 160ms ease, opacity 160ms ease;
+}
+
+.voice-main-action:hover:not(:disabled),
+.voice-stop-action:hover {
+  filter: brightness(1.14);
+  transform: translateY(-2px);
+}
+
+.voice-main-action:focus-visible,
+.voice-stop-action:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.voice-main-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.voice-stop-action {
+  min-height: 2.5rem;
+  border-color: rgba(255, 93, 128, 0.5);
+  padding: 0.55rem 1.35rem;
+  background: rgba(117, 24, 57, 0.7);
+  box-shadow: 0 0 20px rgba(255, 54, 117, 0.18);
+  font-size: 0.72rem;
+}
+
+.voice-listening-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: #f0f8ff;
+  font-size: 1rem;
+}
+
+.voice-listening-ring {
+  position: relative;
+  display: grid;
+  width: 3.6rem;
+  height: 3.6rem;
+  place-items: center;
+  border: 1px solid rgba(122, 235, 255, 0.85);
+  border-radius: 50%;
+  color: #baf7ff;
+  background: rgba(2, 20, 42, 0.78);
+  box-shadow: 0 0 18px rgba(0, 207, 255, 0.55);
+}
+
+.voice-listening-ring::before,
+.voice-listening-ring::after {
+  position: absolute;
+  inset: -0.5rem;
+  border: 1px solid rgba(71, 214, 255, 0.68);
+  border-radius: 50%;
+  content: "";
+  animation: voice-listening-pulse 1.8s ease-out infinite;
+}
+
+.voice-listening-ring::after {
+  animation-delay: 0.9s;
+}
+
+@keyframes voice-listening-pulse {
+  0% { opacity: 0.8; transform: scale(0.78); }
+  100% { opacity: 0; transform: scale(1.65); }
+}
+
 @media (max-width: 640px) {
   .astra-statusbar.is-chat-page,
   .astra-statusbar.is-voice-page {
@@ -4958,15 +5087,35 @@ button.llm-model:not(:disabled):focus-visible {
     min-height: 19rem;
   }
 
+  .voice-core-panel.voice-assistant-hero {
+    min-height: 32rem;
+  }
+
   .voice-core-copy .astra-core {
     width: min(17rem, 78vw);
     height: min(17rem, 78vw);
+  }
+
+  .voice-assistant-content .astra-core {
+    width: min(15rem, 60vw);
+    height: min(15rem, 60vw);
+  }
+
+  .voice-assistant-content.voice-core-copy {
+    padding: 1.25rem 0.75rem;
+  }
+
+  .voice-main-action {
+    width: min(100%, 20rem);
+    padding-inline: 1rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .voice-core-stars,
-  .voice-core-copy .core-sphere {
+  .voice-core-copy .core-sphere,
+  .voice-listening-ring::before,
+  .voice-listening-ring::after {
     animation: none;
   }
 }

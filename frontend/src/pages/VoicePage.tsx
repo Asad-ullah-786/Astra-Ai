@@ -286,29 +286,58 @@ export function VoicePage() {
   const voiceReady = cloudDeployment ? browserSpeechAvailable : Boolean(voiceStatus?.ready);
   const coreState = recording ? "listening" : working && state === "idle" ? "processing" : state;
   const voiceStatusText = recording
-    ? "LISTENING · SPEAK NOW"
+    ? "Listening..."
     : state === "thinking"
       ? "ASTRA IS THINKING"
       : state === "speaking"
         ? "ASTRA IS SPEAKING"
         : working
           ? "PROCESSING YOUR VOICE"
-          : "READY · PRESS START TO TALK";
+          : "READY · PRESS CLICK HERE TO TALK";
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <ModuleNotice moduleId="voice" />
-      <section className="voice-core-panel" aria-label="ASTRA voice assistant">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4">
+      <section className="voice-core-panel voice-assistant-hero" aria-label="ASTRA voice assistant">
         <div className="voice-core-stars" aria-hidden="true" />
-        <div className="voice-core-copy">
+        <div className="voice-core-copy voice-assistant-content">
           <span className="voice-core-eyebrow">
-            {cloudDeployment ? "ASTRA VOICE LINK · BROWSER SPEECH" : "ASTRA VOICE LINK · LOCAL & PRIVATE"}
+            {cloudDeployment ? "ASTRA · BROWSER VOICE" : "ASTRA · LOCAL VOICE"}
           </span>
           <AstraCore state={coreState} />
-          <span className="voice-core-state" role="status">{voiceStatusText}</span>
+          <h1 className="voice-assistant-title">
+            I'm <span>ASTRA</span>, Your Virtual Assistant
+          </h1>
+          <p className="voice-assistant-subtitle">
+            {recording
+              ? "I'm listening. Speak naturally and I'll help."
+              : "Tap below and tell me what you need."}
+          </p>
+          {recording ? (
+            <div className="voice-listening-state" role="status" aria-live="polite">
+              <span className="voice-listening-ring" aria-hidden="true"><Mic className="size-5" /></span>
+              <strong>Listening...</strong>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={!voiceReady || working || assistantBusy}
+              onClick={() => void startRecording()}
+              className="voice-main-action"
+            >
+              {working ? <LoaderCircle className="size-5 animate-spin" /> : <Mic className="size-5" />}
+              {working ? "PROCESSING..." : voiceReady ? "CLICK HERE TO TALK" : "VOICE SETUP REQUIRED"}
+            </button>
+          )}
+          {recording ? (
+            <button type="button" onClick={stopRecording} className="voice-stop-action">
+              <Square className="size-3.5 fill-current" /> STOP & SEND
+            </button>
+          ) : null}
+          {!recording ? <span className="voice-core-state" role="status">{voiceStatusText}</span> : null}
         </div>
       </section>
-      <Panel title="PUSH-TO-TALK">
+      <ModuleNotice moduleId="voice" />
+      <Panel title="VOICE CONTROLS">
         <div className="flex flex-col gap-4">
           {!voiceReady ? (
             <div className="rounded-xl border border-astra-cyan/20 bg-slate-950/45 p-4">
@@ -363,55 +392,36 @@ export function VoicePage() {
               </label>
 
               <div className="flex flex-wrap items-center gap-3">
-                {!recording ? (
+                <label className="inline-flex w-fit items-center gap-2 text-sm text-astra-muted">
+                  <input
+                    type="checkbox"
+                    checked={speakReplies}
+                    onChange={(event) => setSpeakReplies(event.target.checked)}
+                    disabled={!browserCanSpeak || recording || working}
+                  />
+                  Speak ASTRA replies aloud
+                </label>
+                {speakReplies ? (
                   <button
                     type="button"
-                    disabled={working || assistantBusy}
-                    onClick={() => void startRecording()}
-                    className="inline-flex items-center gap-2 rounded-full border border-astra-cyan/50 bg-cyan-950/60 px-5 py-3 font-display text-xs tracking-[0.14em] text-cyan-100 hover:bg-cyan-900/60 disabled:opacity-50"
+                    onClick={() => window.speechSynthesis?.cancel()}
+                    className="inline-flex w-fit items-center gap-2 text-xs text-astra-cyan hover:text-white"
                   >
-                    {working ? <LoaderCircle className="size-4 animate-spin" /> : <Mic className="size-4" />}
-                    {working ? "TRANSCRIBING / THINKING..." : "START RECORDING"}
+                    <VolumeX className="size-4" /> STOP SPOKEN REPLY
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={stopRecording}
-                    className="inline-flex items-center gap-2 rounded-full border border-astra-danger/50 bg-astra-danger/15 px-5 py-3 font-display text-xs tracking-[0.14em] text-white"
-                  >
-                    <Square className="size-3.5 fill-current" /> STOP & SEND
-                  </button>
-                )}
-                <span className="text-xs text-astra-muted" role="status">
-                  {recording
-                    ? "MIC LIVE · pauses send automatically · 60 sec max"
-                    : "Microphone stays off until you start recording"}
-                </span>
+                ) : null}
+                {!browserCanSpeak ? (
+                  <p className="text-xs text-astra-muted">Spoken replies are not supported by this browser.</p>
+                ) : null}
               </div>
-
-              <label className="inline-flex w-fit items-center gap-2 text-sm text-astra-muted">
-                <input
-                  type="checkbox"
-                  checked={speakReplies}
-                  onChange={(event) => setSpeakReplies(event.target.checked)}
-                  disabled={!browserCanSpeak || recording || working}
-                />
-                Speak ASTRA replies aloud
-              </label>
-              {speakReplies ? (
-                <button
-                  type="button"
-                  onClick={() => window.speechSynthesis?.cancel()}
-                  className="inline-flex w-fit items-center gap-2 text-xs text-astra-cyan hover:text-white"
-                >
-                  <VolumeX className="size-4" /> STOP SPOKEN REPLY
-                </button>
-              ) : null}
-              {!browserCanSpeak ? (
-                <p className="text-xs text-astra-muted">Spoken replies are not supported by this browser.</p>
-              ) : null}
             </>
           )}
+
+          {recording ? (
+            <p className="text-xs text-astra-muted" role="status">
+              Microphone is on · pauses send automatically · 60 sec max
+            </p>
+          ) : null}
 
           {error ? <p className="text-sm text-astra-danger" role="alert">{error}</p> : null}
           {commandError ? <p className="text-sm text-astra-danger" role="alert">{commandError}</p> : null}
@@ -431,7 +441,7 @@ export function VoicePage() {
           ) : null}
           <p className="text-xs leading-5 text-astra-muted">
             {cloudDeployment
-              ? "Your browser performs speech recognition, and ASTRA receives the resulting text for chat. Browser speech services may process audio according to that browser provider's policies. Microphone access starts only after you press Start; spoken replies use your browser's speech engine."
+              ? "Your browser performs speech recognition, and ASTRA receives the resulting text for chat. Browser speech services may process audio according to that browser provider's policies. Microphone access starts only after you press the button; spoken replies use your browser's speech engine."
               : <>
                   Recording is sent only to ASTRA on this PC for local Whisper transcription; audio is held temporarily and
                   deleted after processing. The recognized text is saved in conversation history and sent to your selected

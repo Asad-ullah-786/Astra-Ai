@@ -194,7 +194,7 @@ export interface CommandSendOptions {
   onToken?: (chunk: string) => void;
 }
 
-export type LocalApplication = "code" | "cursor" | "chrome" | "settings";
+export type LocalApplication = "code" | "cursor" | "chrome" | "settings" | "notepad" | "calculator" | "explorer";
 
 export type DeviceIntent =
   | { action: "launch_app"; application: LocalApplication; label: string }

@@ -14,6 +14,9 @@ APPLICATION_LABELS = {
     "cursor": "Cursor",
     "chrome": "Google Chrome",
     "settings": "Windows Settings",
+    "notepad": "Notepad",
+    "calculator": "Calculator",
+    "explorer": "File Explorer",
 }
 
 
@@ -23,7 +26,14 @@ def _application_path(application: str) -> str:
     if application == "settings":
         return "ms-settings:"
 
-    executable = {"code": "code", "cursor": "cursor", "chrome": "chrome"}[application]
+    executable = {
+        "code": "code",
+        "cursor": "cursor",
+        "chrome": "chrome",
+        "notepad": "notepad",
+        "calculator": "calc",
+        "explorer": "explorer",
+    }[application]
     found = shutil.which(executable)
     if found:
         return found
@@ -32,11 +42,15 @@ def _application_path(application: str) -> str:
         Path(os.environ.get("LOCALAPPDATA", "")),
         Path(os.environ.get("PROGRAMFILES", "C:\\Program Files")),
         Path(os.environ.get("PROGRAMFILES(X86)", "C:\\Program Files (x86)")),
+        Path(os.environ.get("WINDIR", "C:\\Windows")),
     ]
     relative_paths = {
         "code": (Path("Programs/Microsoft VS Code/Code.exe"), Path("Microsoft VS Code/Code.exe")),
         "cursor": (Path("Programs/Cursor/Cursor.exe"), Path("Cursor/Cursor.exe")),
         "chrome": (Path("Google/Chrome/Application/chrome.exe"),),
+        "notepad": (Path("System32/notepad.exe"),),
+        "calculator": (Path("System32/calc.exe"),),
+        "explorer": (Path("explorer.exe"), Path("System32/explorer.exe")),
     }
     for root in roots:
         if str(root):
@@ -68,7 +82,7 @@ def available_applications() -> list[str]:
     if sys.platform != "win32":
         return []
     available = ["settings"]
-    for application in ("code", "cursor", "chrome"):
+    for application in ("code", "cursor", "chrome", "notepad", "calculator", "explorer"):
         try:
             _application_path(application)
         except AutomationError:

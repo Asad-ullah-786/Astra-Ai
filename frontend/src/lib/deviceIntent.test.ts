@@ -6,6 +6,9 @@ describe("parseDeviceIntent", () => {
     ["open Chrome", { action: "launch_app", application: "chrome", label: "Open Google Chrome" }],
     ["Visual Studio Code kholo", { action: "launch_app", application: "code", label: "Open Visual Studio Code" }],
     ["settings khol do", { action: "launch_app", application: "settings", label: "Open Windows Settings" }],
+    ["open Notepad", { action: "launch_app", application: "notepad", label: "Open Notepad" }],
+    ["open calculator", { action: "launch_app", application: "calculator", label: "Open Calculator" }],
+    ["File Explorer kholo", { action: "launch_app", application: "explorer", label: "Open File Explorer" }],
     ["open https://example.com", { action: "open_url", url: "https://example.com", label: "Open https://example.com" }],
   ])("recognizes the explicit device command %s", (text, expected) => {
     expect(parseDeviceIntent(text)).toEqual(expected);

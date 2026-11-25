@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { NavLink, useSearchParams } from "react-router";
-import { Activity, ArrowRight, CalendarDays, Cpu, ListTodo, MessageSquare, Mic, PlugZap } from "lucide-react";
 import { Panel } from "../components/Panel.tsx";
 import { notifySuccess } from "../lib/notifications.ts";
 import { useAstra } from "../hooks/useAstra.ts";
@@ -104,26 +103,6 @@ export function SettingsPage() {
             SAVE NAME
           </button>
         </form>
-      </Panel>
-
-      <Panel title="QUICK COMMANDS">
-        <div className="grid gap-2 sm:grid-cols-2">
-          {[
-            { to: "/automation", label: "Pair Local Device", icon: PlugZap },
-            { to: "/chat", label: "Open AI Chat", icon: MessageSquare },
-            { to: "/tasks", label: "Open Tasks", icon: ListTodo },
-            { to: "/voice", label: "Open Voice Assistant", icon: Mic },
-            { to: "/system", label: "View System Monitor", icon: Cpu },
-            { to: "/calendar", label: "Open Calendar", icon: CalendarDays },
-            { to: "/activity", label: "View Activity", icon: Activity },
-          ].map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} className="quick-command">
-              <Icon className="size-4" aria-hidden="true" />
-              <span>{label}</span>
-              <ArrowRight className="quick-arrow size-3" aria-hidden="true" />
-            </NavLink>
-          ))}
-        </div>
       </Panel>
 
       {health?.cloud_deployment ? (

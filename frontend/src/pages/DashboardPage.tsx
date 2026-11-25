@@ -6,6 +6,7 @@ import {
   Bot,
   Brain,
   BrainCircuit,
+  Calculator,
   Camera,
   CalendarDays,
   CheckCircle2,
@@ -16,6 +17,8 @@ import {
   Database,
   Github,
   ExternalLink,
+  FileText,
+  FolderOpen,
   Globe,
   ListTodo,
   MessageSquare,
@@ -46,7 +49,7 @@ import { launchApplication } from "../services/api.ts";
 import { captureScreenFrame, downloadBlob } from "../services/screenshot.ts";
 import { getMissionStatus, getTimelineTasks, type MissionRange } from "../lib/mission.ts";
 import { getLLMStatusCards, getLocalModelOverviewCards } from "../lib/llmProviders.ts";
-import type { ActivityItem, ModuleInfo } from "../types/index.ts";
+import type { ActivityItem, LocalApplication, ModuleInfo } from "../types/index.ts";
 
 const AGENT_MODULES = [
   { id: "ai", name: "Coding Agent", icon: Code2, to: "/chat" },
@@ -275,7 +278,7 @@ export function DashboardPage() {
     ? llmStatusCards.find((card) => card.id === agentSetup)
     : null;
 
-  async function launch(application: "code" | "cursor" | "chrome" | "settings") {
+  async function launch(application: LocalApplication) {
     setWorkingAction(application);
     setActionError("");
     try {
@@ -285,6 +288,9 @@ export function DashboardPage() {
         cursor: "Cursor",
         chrome: "Google Chrome",
         settings: "Windows Settings",
+        notepad: "Notepad",
+        calculator: "Calculator",
+        explorer: "File Explorer",
       }[application];
       notifySuccess(`${applicationName} opened successfully.`);
     } catch (caught) {
@@ -498,6 +504,9 @@ export function DashboardPage() {
               <QuickAction label={workingAction === "cursor" ? "Opening Cursor..." : "Open Cursor"} icon={MousePointer2} disabled={Boolean(workingAction)} onClick={() => void launch("cursor")} />
               <QuickAction label={workingAction === "chrome" ? "Opening Chrome..." : "Open Chrome"} icon={Chrome} disabled={Boolean(workingAction)} onClick={() => void launch("chrome")} />
               <QuickAction label={workingAction === "settings" ? "Opening Settings..." : "Open Windows Settings"} icon={Settings2} disabled={Boolean(workingAction)} onClick={() => void launch("settings")} />
+              <QuickAction label={workingAction === "notepad" ? "Opening Notepad..." : "Open Notepad"} icon={FileText} disabled={Boolean(workingAction)} onClick={() => void launch("notepad")} />
+              <QuickAction label={workingAction === "calculator" ? "Opening Calculator..." : "Open Calculator"} icon={Calculator} disabled={Boolean(workingAction)} onClick={() => void launch("calculator")} />
+              <QuickAction label={workingAction === "explorer" ? "Opening File Explorer..." : "Open File Explorer"} icon={FolderOpen} disabled={Boolean(workingAction)} onClick={() => void launch("explorer")} />
               <QuickExternalLink href="https://github.com/" label="Open GitHub" icon={Github} />
               <QuickAction
                 label={workingAction === "screenshot" ? "Choosing Screen..." : "Share Screen"}
@@ -512,6 +521,9 @@ export function DashboardPage() {
               <QuickAction label={workingAction === "cursor" ? "Opening Cursor..." : "Open Cursor"} icon={MousePointer2} disabled={Boolean(workingAction)} onClick={() => void launch("cursor")} />
               <QuickAction label={workingAction === "chrome" ? "Opening Chrome..." : "Open Chrome"} icon={Chrome} disabled={Boolean(workingAction)} onClick={() => void launch("chrome")} />
               <QuickAction label={workingAction === "settings" ? "Opening Settings..." : "Open Windows Settings"} icon={Settings2} disabled={Boolean(workingAction)} onClick={() => void launch("settings")} />
+              <QuickAction label={workingAction === "notepad" ? "Opening Notepad..." : "Open Notepad"} icon={FileText} disabled={Boolean(workingAction)} onClick={() => void launch("notepad")} />
+              <QuickAction label={workingAction === "calculator" ? "Opening Calculator..." : "Open Calculator"} icon={Calculator} disabled={Boolean(workingAction)} onClick={() => void launch("calculator")} />
+              <QuickAction label={workingAction === "explorer" ? "Opening File Explorer..." : "Open File Explorer"} icon={FolderOpen} disabled={Boolean(workingAction)} onClick={() => void launch("explorer")} />
               <QuickExternalLink href="/automation" label="Manage Device" icon={PlugZap} />
               <QuickExternalLink href="https://github.com/" label="Open GitHub" icon={Github} />
               <QuickAction

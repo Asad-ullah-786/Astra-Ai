@@ -501,6 +501,28 @@ def test_allowlisted_automation_launch(client, monkeypatch):
     )
     assert repeated_launch.status_code == 200
     assert repeated_launch.json() == {"action": "launch_app", "message": "Opened code."}
+    for application in ("notepad", "calculator", "explorer"):
+        automation_response = client.post(
+            "/api/v1/automation/launch",
+            json={"application": application},
+            headers=device_headers,
+        )
+        assert automation_response.status_code == 200
+        assert automation_response.json() == {
+            "application": application,
+            "message": f"Opened {application}.",
+        }
+
+        device_response = client.post(
+            "/api/v1/device/action",
+            json={"action": "launch_app", "application": application},
+            headers=device_headers,
+        )
+        assert device_response.status_code == 200
+        assert device_response.json() == {
+            "action": "launch_app",
+            "message": f"Opened {application}.",
+        }
     website = client.post(
         "/api/v1/device/action",
         json={"action": "open_url", "url": "https://example.com"},
@@ -526,7 +548,16 @@ def test_allowlisted_automation_launch(client, monkeypatch):
         headers={**device_headers, "origin": "https://evil.example"},
     )
     assert denied.status_code == 403
-    assert launched == ["chrome", "code"]
+    assert launched == [
+        "chrome",
+        "code",
+        "notepad",
+        "notepad",
+        "calculator",
+        "calculator",
+        "explorer",
+        "explorer",
+    ]
     client.delete("/api/v1/device/session", headers=device_headers)
     assert client.post(
         "/api/v1/device/action",

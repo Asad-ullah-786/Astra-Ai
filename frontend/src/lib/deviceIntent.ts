@@ -10,6 +10,11 @@ const APPLICATIONS: Record<string, { id: LocalApplication; label: string }> = {
   browser: { id: "chrome", label: "Google Chrome" },
   "windows settings": { id: "settings", label: "Windows Settings" },
   settings: { id: "settings", label: "Windows Settings" },
+  notepad: { id: "notepad", label: "Notepad" },
+  calculator: { id: "calculator", label: "Calculator" },
+  calc: { id: "calculator", label: "Calculator" },
+  "file explorer": { id: "explorer", label: "File Explorer" },
+  explorer: { id: "explorer", label: "File Explorer" },
 };
 
 const OPEN_VERB = "(?:please\\s+)?(?:open|launch|start|kholo|khol\\s+do|chalao|chala\\s+do)";

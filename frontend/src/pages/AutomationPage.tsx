@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Chrome, Code2, FileText, Settings2, Video, VideoOff } from "lucide-react";
+import { Calculator, Camera, Chrome, Code2, FileText, FolderOpen, MousePointer2, Settings2, Video, VideoOff } from "lucide-react";
 import { Panel } from "../components/Panel.tsx";
 import { notifySuccess } from "../lib/notifications.ts";
 import { useAstra } from "../hooks/useAstra.ts";
@@ -9,8 +9,12 @@ import { captureScreenFrame, downloadBlob } from "../services/screenshot.ts";
 
 const APPLICATIONS = [
   { id: "code", label: "Open Visual Studio Code", icon: Code2 },
+  { id: "cursor", label: "Open Cursor", icon: MousePointer2 },
   { id: "chrome", label: "Open Google Chrome", icon: Chrome },
   { id: "settings", label: "Open Windows Settings", icon: Settings2 },
+  { id: "notepad", label: "Open Notepad", icon: FileText },
+  { id: "calculator", label: "Open Calculator", icon: Calculator },
+  { id: "explorer", label: "Open File Explorer", icon: FolderOpen },
 ] as const;
 
 export function AutomationPage() {

@@ -26,6 +26,11 @@ import type { VoiceStatus } from "../types/index.ts";
 
 type TranscriptionLanguage = "auto" | "en" | "ur";
 
+interface VoiceModelOption {
+  value: string;
+  label: string;
+}
+
 function describeError(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   return error instanceof Error ? error.message : "Voice input could not be completed.";
@@ -38,6 +43,7 @@ export function VoicePage() {
     health,
     localAIStatus,
     localSelectedModel,
+    selectAIModel,
     sendCommand,
     refresh,
     state,
@@ -48,6 +54,8 @@ export function VoicePage() {
   const [recording, setRecording] = useState(false);
   const [working, setWorking] = useState(false);
   const [speakReplies, setSpeakReplies] = useState(true);
+  const [modelSelectionBusy, setModelSelectionBusy] = useState(false);
+  const [modelSelectionError, setModelSelectionError] = useState("");
   const [transcript, setTranscript] = useState("");
   const [replyText, setReplyText] = useState("");
   const [error, setError] = useState("");
@@ -340,6 +348,27 @@ export function VoicePage() {
     : selectedProvider === "Gemini" || selectedProvider === "OpenAI" || personalProvider
       ? "Gemini and OpenAI models can handle multiple languages; exact language coverage and quality vary by model. ASTRA asks the selected model to reply in the detected speech language."
       : "Choose an AI model to see its language behavior. ASTRA will ask the active model to reply in the detected speech language.";
+  const availableOllamaModels = cloudDeployment
+    ? localAIStatus?.connected ? localAIStatus.models : []
+    : aiStatus?.connected ? aiStatus.models : [];
+  const voiceModelOptions: VoiceModelOption[] = [
+    ...availableOllamaModels.map((model) => ({
+      value: model.name,
+      label: `${cloudDeployment ? "Paired PC" : "Local"} Ollama · ${model.name}`,
+    })),
+    ...(aiStatus?.gemini?.connected
+      ? aiStatus.gemini.models.map((model) => ({ value: `gemini:${model}`, label: `Google Gemini · ${model}` }))
+      : []),
+    ...(aiStatus?.openai?.connected
+      ? aiStatus.openai.models.map((model) => ({ value: `openai:${model}`, label: `OpenAI · ${model}` }))
+      : []),
+  ];
+  if (selectedModel && !voiceModelOptions.some((model) => model.value === selectedModel)) {
+    voiceModelOptions.unshift({
+      value: selectedModel,
+      label: `Current · ${activeProvider} · ${providerModel ?? selectedModel}`,
+    });
+  }
   const coreState = recording ? "listening" : working && state === "idle" ? "processing" : state;
   const voiceStatusText = recording
     ? "Listening..."
@@ -354,6 +383,23 @@ export function VoicePage() {
             : cloudDeployment
               ? "BROWSER SPEECH UNAVAILABLE"
               : "VOICE SETUP REQUIRED";
+
+  async function changeActiveModel(model: string) {
+    if (!model || model === selectedModel || modelSelectionBusy) return;
+    setModelSelectionBusy(true);
+    setModelSelectionError("");
+    try {
+      await selectAIModel(model);
+      const selectedLabel = voiceModelOptions.find((option) => option.value === model)?.label ?? model;
+      notifySuccess(`Voice model changed to ${selectedLabel}.`);
+    } catch (caught) {
+      setModelSelectionError(
+        caught instanceof Error ? caught.message : "The active voice model could not be changed.",
+      );
+    } finally {
+      setModelSelectionBusy(false);
+    }
+  }
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
@@ -406,6 +452,29 @@ export function VoicePage() {
               {providerModel ?? "Select a model in Settings"}
             </p>
             <p className="mt-2 text-xs text-astra-muted">{providerConnection}</p>
+            <label className="mt-4 flex flex-col gap-1 text-xs text-astra-muted" htmlFor="voice-active-model">
+              Change active AI model
+              <select
+                id="voice-active-model"
+                value={selectedModel ?? ""}
+                onChange={(event) => void changeActiveModel(event.target.value)}
+                disabled={!voiceModelOptions.length || modelSelectionBusy}
+                className="min-w-0 rounded-lg border border-astra-cyan/25 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none focus:border-astra-cyan disabled:opacity-60"
+              >
+                <option value="">
+                  {voiceModelOptions.length ? "Choose an available model" : "No connected models available"}
+                </option>
+                {voiceModelOptions.map((model) => (
+                  <option key={model.value} value={model.value}>{model.label}</option>
+                ))}
+              </select>
+            </label>
+            {modelSelectionBusy ? (
+              <p className="mt-2 text-xs text-astra-cyan" role="status">Changing active AI model…</p>
+            ) : null}
+            {modelSelectionError ? (
+              <p className="mt-2 text-xs text-astra-danger" role="alert">{modelSelectionError}</p>
+            ) : null}
             {localModelSelected && !localRouteActive ? (
               <p className="mt-2 text-xs text-amber-200" role="status">
                 {selectedModel || personalProvider

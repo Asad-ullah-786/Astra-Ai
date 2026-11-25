@@ -508,6 +508,10 @@ export function AstraProvider({ children }: { children: ReactNode }) {
       return;
     }
     setAIStatus(await saveAIModel(model));
+    if (health?.cloud_deployment) {
+      sessionStorage.removeItem("astra.localAIModel");
+      setLocalSelectedModel(null);
+    }
     await refresh();
   }, [health?.cloud_deployment, localAIStatus, refresh]);
 

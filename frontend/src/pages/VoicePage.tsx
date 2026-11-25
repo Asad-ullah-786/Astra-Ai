@@ -28,6 +28,7 @@ type TranscriptionLanguage = "auto" | "en" | "ur";
 
 interface VoiceModelOption {
   value: string;
+  group: string;
   label: string;
 }
 
@@ -354,21 +355,32 @@ export function VoicePage() {
   const voiceModelOptions: VoiceModelOption[] = [
     ...availableOllamaModels.map((model) => ({
       value: model.name,
+      group: cloudDeployment ? "Paired PC Ollama" : "Local Ollama",
       label: `${cloudDeployment ? "Paired PC" : "Local"} Ollama · ${model.name}`,
     })),
     ...(aiStatus?.gemini?.connected
-      ? aiStatus.gemini.models.map((model) => ({ value: `gemini:${model}`, label: `Google Gemini · ${model}` }))
+      ? aiStatus.gemini.models.map((model) => ({
+          value: `gemini:${model}`,
+          group: "Google Gemini",
+          label: model,
+        }))
       : []),
     ...(aiStatus?.openai?.connected
-      ? aiStatus.openai.models.map((model) => ({ value: `openai:${model}`, label: `OpenAI · ${model}` }))
+      ? aiStatus.openai.models.map((model) => ({
+          value: `openai:${model}`,
+          group: "OpenAI",
+          label: model,
+        }))
       : []),
   ];
   if (selectedModel && !voiceModelOptions.some((model) => model.value === selectedModel)) {
     voiceModelOptions.unshift({
       value: selectedModel,
+      group: "Current selection",
       label: `Current · ${activeProvider} · ${providerModel ?? selectedModel}`,
     });
   }
+  const voiceModelGroups = [...new Set(voiceModelOptions.map((model) => model.group))];
   const coreState = recording ? "listening" : working && state === "idle" ? "processing" : state;
   const voiceStatusText = recording
     ? "Listening..."
@@ -464,8 +476,14 @@ export function VoicePage() {
                 <option value="">
                   {voiceModelOptions.length ? "Choose an available model" : "No connected models available"}
                 </option>
-                {voiceModelOptions.map((model) => (
-                  <option key={model.value} value={model.value}>{model.label}</option>
+                {voiceModelGroups.map((group) => (
+                  <optgroup key={group} label={group}>
+                    {voiceModelOptions
+                      .filter((model) => model.group === group)
+                      .map((model) => (
+                        <option key={model.value} value={model.value}>{model.label}</option>
+                      ))}
+                  </optgroup>
                 ))}
               </select>
             </label>

@@ -140,34 +140,74 @@ class OllamaProvider(LanguageModel):
         if not self.model:
             raise AIProviderError("Select an installed Ollama model in Settings before chatting.")
 
+        bounded_history = history[-20:]
+        attempts = (
+            {
+                "temperature": 0.7,
+                "repeat_last_n": 128,
+                "repeat_penalty": 1.15,
+                "num_predict": 512,
+            },
+            {
+                "temperature": 0.5,
+                "repeat_last_n": 64,
+                "repeat_penalty": 1.35,
+                "num_predict": 256,
+            },
+        )
         try:
-            async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout) as client:
-                async with client.stream(
-                    "POST",
-                    "/api/chat",
-                    headers=self.headers,
-                    json={"model": self.model, "messages": history, "stream": True},
-                ) as response:
-                    if response.is_error:
-                        detail = (await response.aread()).decode("utf-8", errors="replace")[:500]
-                        raise AIProviderError(f"Ollama could not generate a reply: {detail}")
-                    async for line in response.aiter_lines():
-                        if not line:
-                            continue
-                        try:
-                            payload = json.loads(line)
-                        except json.JSONDecodeError as exc:
-                            raise AIProviderError("Ollama returned an invalid response stream.") from exc
-                        if not isinstance(payload, dict):
-                            raise AIProviderError("Ollama returned an invalid response stream.")
-                        if payload.get("error"):
-                            raise AIProviderError(f"Ollama error: {payload['error']}")
-                        message = payload.get("message") or {}
-                        if not isinstance(message, dict):
-                            raise AIProviderError("Ollama returned an invalid response stream.")
-                        content = message.get("content", "")
-                        if content:
-                            yield content
+            for attempt, options in enumerate(attempts):
+                chunks: list[str] = []
+                repeat_limit_reached = False
+                async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout) as client:
+                    async with client.stream(
+                        "POST",
+                        "/api/chat",
+                        headers=self.headers,
+                        json={
+                            "model": self.model,
+                            "messages": bounded_history,
+                            "stream": True,
+                            "options": options,
+                        },
+                    ) as response:
+                        if response.is_error:
+                            detail = (await response.aread()).decode("utf-8", errors="replace")[:500]
+                            raise AIProviderError(f"Ollama could not generate a reply: {detail}")
+                        async for line in response.aiter_lines():
+                            if not line:
+                                continue
+                            try:
+                                payload = json.loads(line)
+                            except json.JSONDecodeError as exc:
+                                raise AIProviderError("Ollama returned an invalid response stream.") from exc
+                            if not isinstance(payload, dict):
+                                raise AIProviderError("Ollama returned an invalid response stream.")
+                            if payload.get("error"):
+                                error = str(payload["error"])
+                                if "prediction aborted, token repeat limit reached" in error.lower():
+                                    repeat_limit_reached = True
+                                    break
+                                raise AIProviderError(f"Ollama error: {error}")
+                            message = payload.get("message") or {}
+                            if not isinstance(message, dict):
+                                raise AIProviderError("Ollama returned an invalid response stream.")
+                            content = message.get("content", "")
+                            if content:
+                                chunks.append(content)
+                if repeat_limit_reached:
+                    if attempt == 0:
+                        continue
+                    raise AIProviderError(
+                        "The selected Ollama model still got stuck repeating tokens after an automatic retry. "
+                        "Switch to another Ollama model or install a less-quantized variant."
+                    )
+                if chunks:
+                    yield "".join(chunks)
+                    return
+                if attempt == 0:
+                    continue
+            raise AIProviderError("Ollama completed without returning a reply.")
         except AIProviderError:
             raise
         except httpx.HTTPError as exc:

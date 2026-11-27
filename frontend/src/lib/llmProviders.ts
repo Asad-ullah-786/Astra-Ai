@@ -76,12 +76,85 @@ const FREE_GEMINI_MODEL_PREFIXES = [
   "gemma-4",
 ] as const;
 
+const VERIFIED_FREE_OLLAMA_VOICE_MODELS = new Set([
+  "gemma3:270m-it-qat",
+  "qwen2.5:1.5b",
+]);
+
+export function isVerifiedFreeOllamaVoiceModel(model: string): boolean {
+  return VERIFIED_FREE_OLLAMA_VOICE_MODELS.has(model.toLowerCase());
+}
+
+export function getFreeGeminiVoiceModels(models: string[]): string[] {
+  return models.filter((model) => getCloudModelPricingLabel("gemini", model) === "Free tier");
+}
+
 export function getCloudModelPricingLabel(provider: "gemini" | "openai", model: string): string {
   if (provider === "openai") return "Paid";
   const normalized = model.toLowerCase();
   return FREE_GEMINI_MODEL_PREFIXES.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix}-`))
     ? "Free tier"
     : "Paid";
+}
+
+export function getVoiceModelLanguageInfo(
+  provider: "ollama" | "gemini" | "openai",
+  model: string,
+): { summary: string; details: string } {
+  if (provider === "gemini") {
+    return {
+      summary: "English, Urdu + multilingual",
+      details: "Gemini supports English, Urdu, and many other languages. Coverage and response quality vary by model; check Google's model documentation for the exact release.",
+    };
+  }
+  if (provider === "openai") {
+    return {
+      summary: "English, Urdu + multilingual",
+      details: "OpenAI models support multilingual prompts, including English and Urdu. Coverage and response quality vary by model; check OpenAI's model documentation for the exact release.",
+    };
+  }
+
+  const normalized = model.toLowerCase();
+  if (normalized.includes("qwen2.5")) {
+    return {
+      summary: "29 languages · Urdu varies",
+      details: "Qwen 2.5 is trained for 29 languages. Urdu quality is not guaranteed, especially on smaller model variants.",
+    };
+  }
+  if (normalized.includes("llama3.2")) {
+    return {
+      summary: "8 languages · Urdu not listed",
+      details: "Llama 3.2 lists English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai. Urdu is not in its listed supported languages.",
+    };
+  }
+  if (normalized.includes("gemma3")) {
+    return {
+      summary: "140+ languages · quality varies",
+      details: "The Gemma 3 family supports over 140 languages. This small model may be less capable; verify Urdu output before relying on it.",
+    };
+  }
+  if (normalized.includes("mistral")) {
+    return {
+      summary: "English, French, German, Spanish, Italian",
+      details: "Mistral 7B Instruct is strongest in English, French, German, Spanish, and Italian. Urdu is not listed as a supported language for this model.",
+    };
+  }
+  if (normalized.includes("deepseek-r1")) {
+    return {
+      summary: "Chinese + English · Urdu varies",
+      details: "DeepSeek-R1 is primarily trained for Chinese and English. Other languages, including Urdu, may be inconsistent.",
+    };
+  }
+  if (normalized.includes("phi3") || normalized.includes("phi-3")) {
+    return {
+      summary: "English-focused · Urdu varies",
+      details: "Phi-3 Mini is English-focused. Other-language quality varies, and Urdu is not guaranteed.",
+    };
+  }
+  return {
+    summary: "Check model card",
+    details: "Ollama is a runtime; language support comes from this specific model. Check its model card for supported languages and test Urdu before relying on it.",
+  };
 }
 
 export function getLocalModelDownloadQueue(aiStatus: AIStatus | null): LocalModelDownloadCard[] {

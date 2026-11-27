@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   getCloudModelPricingLabel,
+  getFreeGeminiVoiceModels,
   getLLMStatusCards,
   getLocalModelDownloadQueue,
   getLocalModelOverviewCards,
+  getVoiceModelLanguageInfo,
+  isVerifiedFreeOllamaVoiceModel,
 } from "./llmProviders.ts";
 import type { AIStatus } from "../types/index.ts";
 
@@ -214,6 +217,24 @@ describe("LLM status catalog", () => {
     expect(getCloudModelPricingLabel("gemini", "gemma-4-31b-it")).toBe("Free tier");
     expect(getCloudModelPricingLabel("gemini", "gemini-4-carbon")).toBe("Paid");
     expect(getCloudModelPricingLabel("openai", "gpt-4.1-mini")).toBe("Paid");
+  });
+
+  it("only offers verified free Ollama models and free-tier Gemini models for voice", () => {
+    expect(isVerifiedFreeOllamaVoiceModel("qwen2.5:1.5b")).toBe(true);
+    expect(isVerifiedFreeOllamaVoiceModel("gemma3:270m-it-qat")).toBe(true);
+    expect(isVerifiedFreeOllamaVoiceModel("phi3:3.8b-mini-128k-instruct-q2_K")).toBe(false);
+    expect(getFreeGeminiVoiceModels(["gemini-2.5-flash", "gemini-4-carbon", "gemma-4-31b-it"]))
+      .toEqual(["gemini-2.5-flash", "gemma-4-31b-it"]);
+  });
+
+  it("shows model-family language guidance without guaranteeing unsupported languages", () => {
+    expect(getVoiceModelLanguageInfo("ollama", "llama3.2:1b")).toMatchObject({
+      summary: "8 languages · Urdu not listed",
+      details: expect.stringContaining("Hindi"),
+    });
+    expect(getVoiceModelLanguageInfo("ollama", "qwen2.5:1.5b").summary).toContain("Urdu varies");
+    expect(getVoiceModelLanguageInfo("gemini", "gemini-2.5-flash").details).toContain("English, Urdu");
+    expect(getVoiceModelLanguageInfo("openai", "gpt-4o-mini").details).toContain("English and Urdu");
   });
 
   it("does not imply a model is available when Ollama is offline or still loading", () => {

@@ -17,6 +17,12 @@ import { createSpeechQueue } from "../lib/speech.ts";
 import { watchForSpeechPause } from "../lib/voiceSilence.ts";
 import { hasLocalDeviceSession } from "../services/device.ts";
 import {
+  getCloudModelPricingLabel,
+  getFreeGeminiVoiceModels,
+  getVoiceModelLanguageInfo,
+  isVerifiedFreeOllamaVoiceModel,
+} from "../lib/llmProviders.ts";
+import {
   getBrowserSpeechRecognition,
   recognitionLanguage,
   responseLanguageCode,
@@ -25,11 +31,22 @@ import {
 import type { VoiceStatus } from "../types/index.ts";
 
 type TranscriptionLanguage = "auto" | "en" | "ur";
+type VoiceModelProvider = "ollama" | "gemini";
 
 interface VoiceModelOption {
   value: string;
-  group: string;
+  cost: string;
   label: string;
+  languageDetails: string;
+}
+
+interface VoiceModelGroup {
+  id: VoiceModelProvider;
+  title: string;
+  cost: string;
+  description: string;
+  emptyMessage: string;
+  options: VoiceModelOption[];
 }
 
 function describeError(error: unknown): string {
@@ -68,6 +85,12 @@ export function VoicePage() {
   const browserRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const recognizedTextRef = useRef("");
   const recognitionFailedRef = useRef(false);
+  const localPairedChat = Boolean(
+    health?.cloud_deployment
+      && localSelectedModel
+      && hasLocalDeviceSession()
+      && localAIStatus?.connected,
+  );
 
   useEffect(() => {
     let active = true;
@@ -113,6 +136,7 @@ export function VoicePage() {
     setWorking(true);
     setError("");
     setReplyText("");
+    let receivedLocalReply = false;
     try {
       const result = await transcribeAudio(audio, selectedLanguage);
       setTranscript(result.text);
@@ -122,6 +146,10 @@ export function VoicePage() {
         onToken: (chunk) => {
           setReplyText((current) => current + chunk);
           speechQueue?.append(chunk);
+          if (localPairedChat) {
+            receivedLocalReply = true;
+            speechQueue?.finish();
+          }
         },
       });
       if (reply) {
@@ -130,7 +158,7 @@ export function VoicePage() {
         if (speakReplies && !speechQueue) {
           setError("Speech playback is not supported by this browser. ASTRA's text reply is shown below.");
         }
-      } else {
+      } else if (!receivedLocalReply) {
         speechQueue?.cancel();
       }
     } catch (caught) {
@@ -145,6 +173,7 @@ export function VoicePage() {
     setError("");
     setReplyText("");
     setTranscript(text);
+    let receivedLocalReply = false;
     const speechQueue = speakReplies ? createSpeechQueue(responseLanguage) : null;
     try {
       const reply = await sendCommand(text, {
@@ -152,6 +181,10 @@ export function VoicePage() {
         onToken: (chunk) => {
           setReplyText((current) => current + chunk);
           speechQueue?.append(chunk);
+          if (localPairedChat) {
+            receivedLocalReply = true;
+            speechQueue?.finish();
+          }
         },
       });
       if (reply) {
@@ -160,7 +193,7 @@ export function VoicePage() {
         if (speakReplies && !speechQueue) {
           setError("Speech playback is not supported by this browser. ASTRA's text reply is shown below.");
         }
-      } else {
+      } else if (!receivedLocalReply) {
         speechQueue?.cancel();
       }
     } finally {
@@ -344,43 +377,51 @@ export function VoicePage() {
           : selectedProvider === "Ollama"
             ? aiStatus?.connected ? "Connected" : "Not connected"
             : "Choose a model in Settings";
-  const languageGuidance = selectedProvider === "Ollama" && !personalProvider
-    ? "Ollama is a runtime, not one model: it is not inherently English-only. Language ability varies by the selected model. ASTRA asks it to reply in the detected speech language; check that model's card for its exact language coverage."
-    : selectedProvider === "Gemini" || selectedProvider === "OpenAI" || personalProvider
-      ? "Gemini and OpenAI models can handle multiple languages; exact language coverage and quality vary by model. ASTRA asks the selected model to reply in the detected speech language."
-      : "Choose an AI model to see its language behavior. ASTRA will ask the active model to reply in the detected speech language.";
-  const availableOllamaModels = cloudDeployment
+  const installedOllamaModels = cloudDeployment
     ? localAIStatus?.connected ? localAIStatus.models : []
     : aiStatus?.connected ? aiStatus.models : [];
-  const voiceModelOptions: VoiceModelOption[] = [
-    ...availableOllamaModels.map((model) => ({
-      value: model.name,
-      group: cloudDeployment ? "Paired PC Ollama" : "Local Ollama",
-      label: `${cloudDeployment ? "Paired PC" : "Local"} Ollama · ${model.name}`,
-    })),
-    ...(aiStatus?.gemini?.connected
-      ? aiStatus.gemini.models.map((model) => ({
-          value: `gemini:${model}`,
-          group: "Google Gemini",
-          label: model,
-        }))
-      : []),
-    ...(aiStatus?.openai?.connected
-      ? aiStatus.openai.models.map((model) => ({
-          value: `openai:${model}`,
-          group: "OpenAI",
-          label: model,
-        }))
-      : []),
+  const availableOllamaModels = installedOllamaModels.filter((model) =>
+    isVerifiedFreeOllamaVoiceModel(model.name),
+  );
+  const createVoiceModelOption = (
+    provider: VoiceModelProvider,
+    model: string,
+    value: string,
+  ): VoiceModelOption => {
+    const languageInfo = getVoiceModelLanguageInfo(provider, model);
+    const cost = provider === "ollama"
+      ? "Free locally"
+      : getCloudModelPricingLabel("gemini", model);
+    return {
+      value,
+      cost,
+      label: `${model} · ${cost} · ${languageInfo.summary}`,
+      languageDetails: languageInfo.details,
+    };
+  };
+  const voiceModelGroups: VoiceModelGroup[] = [
+    {
+      id: "ollama",
+      title: cloudDeployment ? "OLLAMA · PAIRED PC" : "OLLAMA · LOCAL",
+      cost: "FREE LOCALLY",
+      description: "No model API fee; your PC supplies the compute. Only locally installed models that passed ASTRA's response check are listed.",
+      emptyMessage: "No verified free Ollama models are installed. Install Gemma 3 270M or Qwen 2.5 1.5B on your paired PC.",
+      options: availableOllamaModels.map((model) => createVoiceModelOption("ollama", model.name, model.name)),
+    },
+    {
+      id: "gemini",
+      title: "GOOGLE GEMINI",
+      cost: "FREE TIER",
+      description: "Only provider-listed Gemini models classified as free tier are shown. Free quotas and availability limits apply.",
+      emptyMessage: "No free-tier Gemini models are available from the connected account.",
+      options: aiStatus?.gemini?.connected
+        ? getFreeGeminiVoiceModels(aiStatus.gemini.models)
+            .map((model) => createVoiceModelOption("gemini", model, `gemini:${model}`))
+        : [],
+    },
   ];
-  if (selectedModel && !voiceModelOptions.some((model) => model.value === selectedModel)) {
-    voiceModelOptions.unshift({
-      value: selectedModel,
-      group: "Current selection",
-      label: `Current · ${activeProvider} · ${providerModel ?? selectedModel}`,
-    });
-  }
-  const voiceModelGroups = [...new Set(voiceModelOptions.map((model) => model.group))];
+  const voiceModelOptions = voiceModelGroups.flatMap((group) => group.options);
+  const selectedVoiceModel = voiceModelOptions.find((model) => model.value === selectedModel);
   const coreState = recording ? "listening" : working && state === "idle" ? "processing" : state;
   const voiceStatusText = recording
     ? "Listening..."
@@ -464,41 +505,11 @@ export function VoicePage() {
               {providerModel ?? "Select a model in Settings"}
             </p>
             <p className="mt-2 text-xs text-astra-muted">{providerConnection}</p>
-            <label className="mt-4 flex flex-col gap-1 text-xs text-astra-muted" htmlFor="voice-active-model">
-              Change active AI model
-              <select
-                id="voice-active-model"
-                value={selectedModel ?? ""}
-                onChange={(event) => void changeActiveModel(event.target.value)}
-                disabled={!voiceModelOptions.length || modelSelectionBusy}
-                className="min-w-0 rounded-lg border border-astra-cyan/25 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none focus:border-astra-cyan disabled:opacity-60"
-              >
-                <option value="">
-                  {voiceModelOptions.length ? "Choose an available model" : "No connected models available"}
-                </option>
-                {voiceModelGroups.map((group) => (
-                  <optgroup key={group} label={group}>
-                    {voiceModelOptions
-                      .filter((model) => model.group === group)
-                      .map((model) => (
-                        <option key={model.value} value={model.value}>{model.label}</option>
-                      ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
-            {modelSelectionBusy ? (
-              <p className="mt-2 text-xs text-astra-cyan" role="status">Changing active AI model…</p>
-            ) : null}
-            {modelSelectionError ? (
-              <p className="mt-2 text-xs text-astra-danger" role="alert">{modelSelectionError}</p>
-            ) : null}
-            {localModelSelected && !localRouteActive ? (
-              <p className="mt-2 text-xs text-amber-200" role="status">
-                {selectedModel || personalProvider
-                  ? "The selected local Ollama model is offline. ASTRA will use the configured hosted model instead."
-                  : "The selected local Ollama model is offline. Reconnect the companion or choose a hosted model in Settings."}
-              </p>
+            {selectedVoiceModel ? (
+              <>
+                <p className="mt-3 text-xs font-semibold text-astra-cyan">{selectedVoiceModel.cost}</p>
+                <p className="mt-2 text-xs leading-5 text-astra-muted">{selectedVoiceModel.languageDetails}</p>
+              </>
             ) : null}
           </div>
           <div className="rounded-xl border border-astra-cyan/20 bg-slate-950/45 p-4">
@@ -525,8 +536,76 @@ export function VoicePage() {
               Replies are spoken by your browser's speech engine when supported.
             </p>
           </div>
-          <p className="text-xs leading-5 text-astra-muted sm:col-span-2">{languageGuidance}</p>
         </div>
+        <section className="mt-6" aria-labelledby="voice-model-options-heading">
+          <div className="mb-3">
+            <h3 id="voice-model-options-heading" className="font-display text-sm tracking-[0.12em] text-white">
+              CHOOSE A PROVIDER & MODEL
+            </h3>
+            <p className="mt-1 text-xs text-astra-muted">
+              Providers are separated below. Model choices show their cost and language guidance.
+            </p>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {voiceModelGroups.map((group) => {
+              const activeOption = group.options.find((model) => model.value === selectedModel);
+              return (
+                <div key={group.id} className="min-w-0 rounded-xl border border-astra-cyan/20 bg-slate-950/45 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <h4 className="font-display text-xs tracking-[0.12em] text-astra-cyan">{group.title}</h4>
+                    <span className="rounded-full border border-astra-cyan/20 px-2 py-1 text-[10px] font-semibold text-white">
+                      {group.cost}
+                    </span>
+                  </div>
+                  <p className="mt-2 min-h-10 text-xs leading-5 text-astra-muted">{group.description}</p>
+                  <label className="mt-3 flex flex-col gap-1 text-xs text-astra-muted" htmlFor={`voice-model-${group.id}`}>
+                    Select {group.id === "gemini" ? "Gemini" : "Ollama"} model
+                    <select
+                      id={`voice-model-${group.id}`}
+                      aria-label={`Select ${group.id} voice model`}
+                      value={activeOption ? selectedModel ?? "" : ""}
+                      onChange={(event) => void changeActiveModel(event.target.value)}
+                      disabled={!group.options.length || modelSelectionBusy}
+                      className="min-w-0 rounded-lg border border-astra-cyan/25 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none focus:border-astra-cyan disabled:opacity-60"
+                    >
+                      <option value="">
+                        {group.options.length ? "Choose an available model" : "No connected models"}
+                      </option>
+                      {group.options.map((model) => (
+                        <option key={model.value} value={model.value}>{model.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="mt-3 min-h-14 text-xs leading-5 text-astra-muted" aria-live="polite">
+                    {activeOption?.languageDetails ?? group.emptyMessage}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          {modelSelectionBusy ? (
+            <p className="mt-3 text-xs text-astra-cyan" role="status">Changing active AI model…</p>
+          ) : null}
+          {modelSelectionError ? (
+            <p className="mt-3 text-xs text-astra-danger" role="alert">{modelSelectionError}</p>
+          ) : null}
+          {localModelSelected && !localRouteActive ? (
+            <p className="mt-3 text-xs text-amber-200" role="status">
+              The selected local Ollama model is offline. Reconnect the companion or choose a hosted model.
+            </p>
+          ) : null}
+          {selectedModel && !selectedVoiceModel ? (
+            <p className="mt-3 text-xs text-amber-200" role="status">
+              The current model is paid or not verified as a working free voice model, so it is hidden here.
+              Choose a free model from the list to switch.
+            </p>
+          ) : null}
+          <p className="mt-3 text-xs leading-5 text-astra-muted">
+            Paid OpenAI models and paid Gemini models are hidden from this voice picker. Free cloud tiers have limits
+            and can change. Ollama language notes are family-level guidance; smaller models may perform worse,
+            especially in Urdu.
+          </p>
+        </section>
       </Panel>
       <Panel title="VOICE CONTROLS">
         <div className="flex flex-col gap-4">

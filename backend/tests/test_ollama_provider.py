@@ -85,13 +85,94 @@ def test_hosted_ollama_uses_the_configured_endpoint_for_model_list_and_stream(mo
     reply = asyncio.run(collect())
 
     assert [model.name for model in models] == ["qwen2.5:3b"]
-    assert reply == ["Hosted ", "reply"]
+    assert reply == ["Hosted reply"]
     assert calls[1] == ("GET", "/api/tags", {"Authorization": "Bearer gateway-secret"})
     assert calls[3][0:3] == (
         "POST",
         "/api/chat",
         {"Authorization": "Bearer gateway-secret"},
     )
+    assert calls[3][3]["options"] == {
+        "temperature": 0.7,
+        "repeat_last_n": 128,
+        "repeat_penalty": 1.15,
+        "num_predict": 512,
+    }
+
+
+def test_ollama_repeat_limit_error_recommends_a_model_change(monkeypatch):
+    monkeypatch.setattr("app.ai.provider.get_settings", lambda: hosted_settings())
+
+    class Response:
+        is_error = False
+
+        async def aiter_lines(self):
+            yield '{"error":"prediction aborted, token repeat limit reached"}'
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        @asynccontextmanager
+        async def stream(self, *args, **kwargs):
+            yield Response()
+
+    monkeypatch.setattr("app.ai.provider.httpx.AsyncClient", FakeClient)
+    provider = OllamaProvider("phi3:3.8b-mini-128k-instruct-q2_K")
+
+    async def collect():
+        return [chunk async for chunk in provider.stream([{"role": "user", "content": "Hello"}])]
+
+    with pytest.raises(AIProviderError, match="automatic retry"):
+        asyncio.run(collect())
+
+
+def test_ollama_retries_repeat_limit_once(monkeypatch):
+    monkeypatch.setattr("app.ai.provider.get_settings", lambda: hosted_settings())
+    calls = []
+
+    class Response:
+        is_error = False
+
+        def __init__(self, repeat):
+            self.repeat = repeat
+
+        async def aiter_lines(self):
+            if self.repeat:
+                yield '{"error":"prediction aborted, token repeat limit reached"}'
+            else:
+                yield '{"message":{"content":"A clean reply"}}'
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        @asynccontextmanager
+        async def stream(self, method, path, *, headers, json):
+            calls.append(json["options"])
+            yield Response(repeat=len(calls) == 1)
+
+    monkeypatch.setattr("app.ai.provider.httpx.AsyncClient", FakeClient)
+    provider = OllamaProvider("qwen2.5:1.5b")
+
+    async def collect():
+        return [chunk async for chunk in provider.stream([{"role": "user", "content": "Hello"}])]
+
+    assert asyncio.run(collect()) == ["A clean reply"]
+    assert calls[1]["repeat_penalty"] == 1.35
+    assert calls[1]["temperature"] == 0.5
 
 
 @pytest.mark.parametrize(

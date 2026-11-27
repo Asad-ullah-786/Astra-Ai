@@ -383,13 +383,14 @@ export function AstraProvider({ children }: { children: ReactNode }) {
               .map((message) => ({ role: message.role as "user" | "assistant", content: message.content })),
             options?.responseLanguage,
           );
+          setState("speaking");
+          options?.onToken?.(result.reply);
           const saved = await saveLocalAICommand({
             text: cleaned,
             reply: result.reply,
             conversation_id: activeIdRef.current,
             model: localSelectedModel,
           });
-          options?.onToken?.(result.reply);
           activeIdRef.current = saved.conversation_id;
           setActiveConversationId(saved.conversation_id);
           setMessages((current) => [...current, saved.user_message, saved.assistant_message]);
